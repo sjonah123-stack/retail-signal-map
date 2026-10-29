@@ -1739,6 +1739,8 @@ function readUrl() {
   if (w && /^[0-3]+$/.test(w)) { weights = GROUPS.map((g, i) => i < w.length ? +w[i] : weights[i]); activePreset = matchPreset(); renderPresets(); }
   const r = p.get("roles");
   if (r && /^[eln]+$/.test(r)) roles = GROUPS.map((g, i) => i < r.length ? { e: "early", l: "late", n: "none" }[r[i]] : roles[i]);
+  // Anything a link leaves out goes back to its default, so a second link applied in place doesn't inherit the first's.
+  minEarly = 4; maxLate = 0; lateRadius = 10;
   const fr = p.get("fr");
   if (fr) { const [a, b, c] = fr.split(".").map(Number); minEarly = num(a, 1, 30, minEarly); maxLate = num(b, 0, 30, maxLate); lateRadius = num(c, 3, 25, lateRadius); }
   const f = p.get("f");
@@ -1748,7 +1750,7 @@ function readUrl() {
   }
   if (SORTS.includes(p.get("sort"))) sortBy = p.get("sort");
   setFilterInputs();
-  if (hasMetric(p.get("color"))) colorBy = p.get("color");
+  colorBy = hasMetric(p.get("color")) ? p.get("color") : "score";
   // Coordinates are range-checked: a link with an absurd value would otherwise freeze the grid loops.
   const mv = (p.get("map") || "").split("/").map(Number);
   if (mv.length === 3 && mv.every(isFinite) && Math.abs(mv[1]) <= 85 && Math.abs(mv[2]) <= 180) map.setView([mv[1], mv[2]], Math.min(19, Math.max(2, mv[0])), { animate: false });
@@ -1769,6 +1771,19 @@ async function copyLink() {
   catch (e) { toast("Couldn't copy automatically. Copy the address bar instead.", true); }
 }
 $("shareBtn").addEventListener("click", copyLink);
+// A link pasted into a tab that already has the site open only changes the part after #, which doesn't reload
+// the page. Apply it in place. (The page's own URL updates use replaceState, which doesn't fire this event.)
+window.addEventListener("hashchange", () => {
+  const prevRadius = radius;
+  compare = [];
+  const at = readUrl();
+  if (stores.length && radius !== prevRadius) refreshAll();
+  setColorBy(colorBy);
+  if (stores.length) afterCompareChange();
+  if (at) openReport(at.lat, at.lon);
+  else if (reportAt) closeReport();
+  if (cmpOpen && !compare.length) closeCompare();
+});
 
 // ================= Upcoming openings =================
 function renderUpcoming() {
