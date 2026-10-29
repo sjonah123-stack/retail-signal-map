@@ -7,48 +7,48 @@
 // sel: OpenStreetMap feature filter. re: regex matched against brand and name (case-insensitive unless ci:false).
 // ref: most recent reported US count found in public sources, used only to show coverage.
 const GROUPS = [
-  { name: "Chick-fil-A", cat: "list", color: "#e15759", brands: [
+  { name: "Chick-fil-A", cat: "food", color: "#e15759", brands: [
     { name: "Chick-fil-A", sel: '["amenity"="fast_food"]', re: "^Chick-fil-A", ref: 3300, src: "About 3,290 US restaurants at end of 2025 (QSR 50). Excludes ~425 licensed airport and campus units." }] },
-  { name: "Costco", cat: "list", color: "#4e79a7", brands: [
+  { name: "Costco", cat: "shopping", color: "#4e79a7", brands: [
     { name: "Costco", sel: '["shop"]', re: "^Costco", ref: 641, src: "641 US and Puerto Rico warehouses, fiscal 2026." }] },
-  { name: "Trader Joe's", cat: "list", color: "#b07aa1", brands: [
+  { name: "Trader Joe's", cat: "grocery", color: "#b07aa1", brands: [
     { name: "Trader Joe's", sel: '["shop"="supermarket"]', re: "^Trader Joe", ref: 662, src: "662 US stores, Sept 2026 store-locator count (ScrapeHero)." }] },
-  { name: "Regional grocer", cat: "list", color: "#59a14f", brands: [
+  { name: "Regional grocer", cat: "grocery", color: "#59a14f", brands: [
     { name: "H-E-B", sel: '["shop"="supermarket"]', re: "^H-E-B", ref: null, src: "No recent official count found." },
     { name: "Publix", sel: '["shop"="supermarket"]', re: "^Publix", ref: 1434, src: "1,434 stores as of May 2026 (company filing)." },
     { name: "Wegmans", sel: '["shop"="supermarket"]', re: "^Wegmans", ref: 114, src: "About 114 stores, 2026." }] },
-  { name: "Starbucks", cat: "list", color: "#1b7f5f", brands: [
+  { name: "Starbucks", cat: "food", color: "#1b7f5f", brands: [
     { name: "Starbucks", sel: '["amenity"="cafe"]', re: "^Starbucks", ref: 16944, src: "16,944 US stores, March 2026 (company). Includes licensed counters inside Target, grocery stores and airports, which OpenStreetMap rarely maps." }] },
-  { name: "Target", cat: "list", color: "#c2185b", brands: [
+  { name: "Target", cat: "shopping", color: "#c2185b", brands: [
     { name: "Target", sel: '["shop"]', re: "^Target$", ref: 2019, src: "2,019 stores, Aug 1 2026 (10-Q)." }] },
-  { name: "Home improvement", cat: "list", color: "#f28e2b", brands: [
+  { name: "Home improvement", cat: "shopping", color: "#f28e2b", brands: [
     { name: "Home Depot", sel: '["shop"]', re: "^(The )?Home Depot$", ref: 2021, src: "2,021 stores in the 50 states and DC, Feb 2026." },
     { name: "Lowe's", sel: '["shop"]', re: "^Lowe['’]s( Home Improvement)?$", ref: 1759, src: "1,759 stores, May 2026." }] },
-  { name: "Dutch Bros", cat: "list", color: "#5aa9a3", brands: [
+  { name: "Dutch Bros", cat: "food", color: "#5aa9a3", brands: [
     { name: "Dutch Bros", sel: '["amenity"="cafe"]', re: "^Dutch Bros", ref: 1225, src: "1,225 shops, June 30 2026 (company)." }] },
-  { name: "Cult regional QSR", cat: "list", color: "#9c755f", brands: [
+  { name: "Cult regional QSR", cat: "food", color: "#9c755f", brands: [
     { name: "Whataburger", sel: '["amenity"="fast_food"]', re: "^Whataburger", ref: null, src: "No recent official count found." },
     { name: "In-N-Out", sel: '["amenity"="fast_food"]', re: "^In-N-Out", ref: 442, src: "442 restaurants, Aug 2026 store-locator count." },
     { name: "Wawa", sel: '["shop"]', re: "^Wawa$", ref: 1189, src: "1,189 stores, Jan 1 2026 (CSP Top 202)." }] },
-  { name: "Whole Foods", cat: "added", color: "#7d9a2e", why: "Zillow found homes near new stores began appreciating faster than their metro after opening.", brands: [
+  { name: "Whole Foods", cat: "grocery", color: "#7d9a2e", why: "Zillow found homes near new stores began appreciating faster than their metro after opening.", brands: [
     { name: "Whole Foods", sel: '["shop"="supermarket"]', re: "^Whole Foods", ref: 530, src: "About 530 US stores, early 2026 (third-party count)." }] },
-  { name: "Sprouts", cat: "added", color: "#d4a514", why: "Core shopper is college-educated with above-average household income.", brands: [
+  { name: "Sprouts", cat: "grocery", color: "#d4a514", why: "Core shopper is college-educated with above-average household income.", brands: [
     { name: "Sprouts", sel: '["shop"="supermarket"]', re: "^Sprouts", ref: 490, src: "490 stores, June 2026 (company)." }] },
-  { name: "Life Time", cat: "added", color: "#6a5acd", why: "Clubs sit in affluent suburbs; member median household income is about $159K.", brands: [
+  { name: "Life Time", cat: "fitness", color: "#6a5acd", why: "Clubs sit in affluent suburbs; member median household income is about $159K.", brands: [
     { name: "Life Time", sel: '["leisure"]', re: "^Life ?Time( Fitness| Athletic| Athletic Club)?$", ref: 195, src: "195 centers, June 2026 (company). A few are in Canada." }] },
-  { name: "Upscale fast casual", cat: "added", color: "#e8749a", why: "Trade areas skew toward young, well-educated professionals, though both chains are broadening their price range.", brands: [
+  { name: "Upscale fast casual", cat: "food", color: "#e8749a", why: "Trade areas skew toward young, well-educated professionals, though both chains are broadening their price range.", brands: [
     { name: "CAVA", sel: '["amenity"~"^(restaurant|fast_food)$"]', re: "^CAVA$", ci: false, ref: 476, src: "476 restaurants, July 2026 (company)." },
     { name: "sweetgreen", sel: '["amenity"~"^(restaurant|fast_food)$"]', re: "^sweetgreen", ref: null, src: "No recent official count found." }] },
-  { name: "ALDI", cat: "added", color: "#1f8fc4", w0: 0, why: "Off by default. ATTOM found the best flip returns near ALDI: a value and upward-mobility signal, not affluence.", brands: [
+  { name: "ALDI", cat: "grocery", color: "#1f8fc4", w0: 0, why: "Off by default. ATTOM found the best flip returns near ALDI: a value and upward-mobility signal, not affluence.", brands: [
     { name: "ALDI", sel: '["shop"="supermarket"]', re: "^ALDI$", ref: null, src: "No recent official count found." }] },
-  { name: "Shake Shack", cat: "more", color: "#475569", why: "Premium-priced fast casual with a deliberate US rollout.", brands: [
+  { name: "Shake Shack", cat: "food", color: "#475569", why: "Premium-priced fast casual with a deliberate US rollout.", brands: [
     { name: "Shake Shack", sel: '["amenity"~"^(fast_food|restaurant)$"]', re: "^Shake Shack", ref: 460, src: "About 460 US Shacks, Aug 2026 (company)." }] },
-  { name: "First Watch", cat: "more", color: "#a16207", why: "Daytime dining expanding in suburbs, with 100+ projects in development.", brands: [
+  { name: "First Watch", cat: "food", color: "#a16207", why: "Daytime dining expanding in suburbs, with 100+ projects in development.", brands: [
     { name: "First Watch", sel: '["amenity"~"^(restaurant|cafe|fast_food)$"]', re: "^First Watch", ref: 665, src: "665 restaurants in 33 states, June 2026 (company)." }] },
-  { name: "Drive-thru growth", cat: "more", color: "#0891b2", why: "Fast-growing drive-thru chains moving into new suburbs; 7 Brew plans 400+ openings in 2026.", brands: [
+  { name: "Drive-thru growth", cat: "food", color: "#0891b2", why: "Fast-growing drive-thru chains moving into new suburbs; 7 Brew plans 400+ openings in 2026.", brands: [
     { name: "Raising Cane's", sel: '["amenity"="fast_food"]', re: "^Raising Cane['’]s", ref: 1000, src: "Passed 1,000 restaurants in 2026 (third-party tracker). A few are outside the US." },
     { name: "7 Brew", sel: '["amenity"~"^(cafe|fast_food)$"]', re: "^7 ?Brew", ref: null, src: "No recent official count found." }] },
-  { name: "Upscale specialty retail", cat: "more", color: "#a855f7", why: "A judgment-based group: affluent-skewing retailers, without the research backing of the other signals.", brands: [
+  { name: "Upscale specialty retail", cat: "shopping", color: "#a855f7", why: "A judgment-based group: affluent-skewing retailers, without the research backing of the other signals.", brands: [
     { name: "lululemon", sel: '["shop"]', re: "^lululemon", ref: null, src: "No recent official count found." },
     { name: "REI", sel: '["shop"]', re: "^REI( Co-op)?$", ci: false, ref: null, src: "No recent official count found." },
     { name: "Total Wine", sel: '["shop"]', re: "^Total Wine", ref: null, src: "No recent official count found." },
@@ -57,32 +57,32 @@ const GROUPS = [
     { name: "Vuori", sel: '["shop"]', re: "^Vuori$", ref: null, src: "No recent official count found." },
     { name: "Aritzia", sel: '["shop"]', re: "^Aritzia$", ref: null, src: "No recent official count found." },
     { name: "Warby Parker", sel: '["shop"]', re: "^Warby Parker", ref: null, src: "No recent official count found." }] },
-  { name: "Luxury fitness", cat: "luxury", color: "#c026d3", why: "Memberships around $200–400 a month. Equinox is concentrated in dense, high-income urban cores, mostly New York and California.", brands: [
+  { name: "Luxury fitness", cat: "fitness", color: "#c026d3", why: "Memberships around $200–400 a month. Equinox is concentrated in dense, high-income urban cores, mostly New York and California.", brands: [
     { name: "Equinox", sel: '["leisure"]', re: "^Equinox", ref: 108, src: "108 US clubs in 15 states, Feb 2026 (third-party count)." },
     { name: "SoulCycle", sel: '["leisure"]', re: "^SoulCycle", ref: null, src: "No recent official count found." },
     { name: "Barry's", sel: '["leisure"]', re: "^Barry['’]s( Bootcamp)?$", ref: null, src: "No recent official count found." },
     { name: "solidcore", sel: '["leisure"]', re: "solidcore", ref: null, src: "No recent official count found." }] },
-  { name: "Premium grocery", cat: "luxury", color: "#65a30d", why: "Specialty grocers priced above Whole Foods, in high-income neighborhoods.", brands: [
+  { name: "Premium grocery", cat: "grocery", color: "#65a30d", why: "Specialty grocers priced above Whole Foods, in high-income neighborhoods.", brands: [
     { name: "Erewhon", sel: '["shop"]', re: "^Erewhon", ref: null, src: "No recent official count found." },
     { name: "The Fresh Market", sel: '["shop"]', re: "^The Fresh Market$", ref: null, src: "No recent official count found." },
     { name: "Central Market", sel: '["shop"="supermarket"]', re: "^Central Market$", ref: null, src: "No recent official count found. H-E-B's upscale banner in Texas." }] },
-  { name: "Premium home furnishings", cat: "luxury", color: "#92400e", why: "Big-ticket home spending follows homeowners with high incomes and home equity.", brands: [
+  { name: "Premium home furnishings", cat: "shopping", color: "#92400e", why: "Big-ticket home spending follows homeowners with high incomes and home equity.", brands: [
     { name: "RH", sel: '["shop"]', re: "^(RH( |$)|Restoration Hardware)", ci: false, ref: null, src: "No recent official count found. Includes RH outlets." },
     { name: "Williams-Sonoma", sel: '["shop"]', re: "^Williams[- ]Sonoma", ref: null, src: "No recent official count found." },
     { name: "Pottery Barn", sel: '["shop"]', re: "^Pottery Barn", ref: null, src: "No recent official count found." },
     { name: "Crate & Barrel", sel: '["shop"]', re: "^Crate (&|and) Barrel", ref: null, src: "No recent official count found." }] },
-  { name: "Luxury department stores", cat: "luxury", color: "#1e3a8a", why: "Full-line stores only; Nordstrom Rack and Saks Off 5th are excluded.", brands: [
+  { name: "Luxury department stores", cat: "shopping", color: "#1e3a8a", why: "Full-line stores only; Nordstrom Rack and Saks Off 5th are excluded.", brands: [
     { name: "Nordstrom", sel: '["shop"]', re: "^Nordstrom$", ref: null, src: "No recent official count found. Excludes Nordstrom Rack." },
     { name: "Neiman Marcus", sel: '["shop"]', re: "^Neiman Marcus$", ref: null, src: "No recent official count found." },
     { name: "Saks Fifth Avenue", sel: '["shop"]', re: "^Saks Fifth Avenue$", ref: null, src: "No recent official count found. Excludes Saks Off 5th." },
     { name: "Bloomingdale's", sel: '["shop"]', re: "^Bloomingdale['’]s$", ref: null, src: "No recent official count found. Excludes outlets." }] },
-  { name: "Premium childcare", cat: "luxury", color: "#38bdf8", why: "Private early-education chains with high tuition. They follow affluent young families into new subdivisions.", brands: [
+  { name: "Premium childcare", cat: "fitness", color: "#38bdf8", why: "Private early-education chains with high tuition. They follow affluent young families into new subdivisions.", brands: [
     { name: "Primrose Schools", sel: '["amenity"~"^(kindergarten|childcare|school)$"]', re: "^Primrose School", ref: null, src: "No recent official count found." },
     { name: "Goddard School", sel: '["amenity"~"^(kindergarten|childcare|school)$"]', re: "^(The )?Goddard School", ref: null, src: "No recent official count found." }] },
-  { name: "Tesla", cat: "luxury", color: "#dc2626", why: "Showrooms and service centers; chargers are excluded.", brands: [
+  { name: "Tesla", cat: "fitness", color: "#dc2626", why: "Showrooms and service centers; chargers are excluded.", brands: [
     { name: "Tesla", sel: '["shop"~"^(car|car_repair)$"]', re: "^Tesla", ref: null, src: "No recent official count found. Excludes Superchargers." }] },
 ];
-const CATS = [["list", "Core signals"], ["added", "Added from research"], ["more", "More restaurants and retail"], ["luxury", "Luxury and premium"], ["custom", "Your chains"]];
+const CATS = [["grocery", "Grocery"], ["food", "Restaurants and coffee"], ["shopping", "Shopping"], ["fitness", "Fitness and services"], ["custom", "Your chains"]];
 const MAX_GROUPS = 30;   // scores are stored as bit flags, one per signal
 const CUSTOM_COLORS = ["#e11d48", "#0ea5e9", "#84cc16", "#f59e0b", "#14b8a6", "#8b5cf6", "#ec4899", "#22c55e"];
 let BRANDS = [], brandByName = new Map();
@@ -109,7 +109,6 @@ const PRESETS = [
       "Premium grocery": 3, "Premium home furnishings": 2, "Luxury department stores": 2, "Premium childcare": 1, "Tesla": 1 }, 0) },
   { id: "growth", name: "Growth suburbs", w: byNames({ "Chick-fil-A": 2, "Costco": 1, "Regional grocer": 2, "Starbucks": 1, "Target": 1, "Home improvement": 1,
       "Dutch Bros": 3, "Cult regional QSR": 2, "Sprouts": 1, "Upscale fast casual": 1, "First Watch": 2, "Drive-thru growth": 3, "Premium childcare": 2 }, 0) },
-  { id: "nine", name: "Original nine", w: GROUPS.map(g => g.cat === "list" ? 1 : 0) },
 ];
 
 // A lens is a starting point: a weighting, a scoring mode and a set of filters for one kind of buyer.
