@@ -5,6 +5,7 @@
   --good: #006300; --bad: #b3302d; --fair: #8a5d00;
   --shadow-1: 0 1px 2px rgba(17, 17, 16, .06), 0 1px 1px rgba(17, 17, 16, .03);
   --shadow-2: 0 2px 6px rgba(17, 17, 16, .07), 0 14px 36px rgba(17, 17, 16, .13);
+  --scrim: rgba(17, 17, 16, .5);
   --r: 12px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   color-scheme: light;
@@ -17,6 +18,7 @@
     --good: #3cc23c; --bad: #ef7a73; --fair: #e0b04f;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-2: 0 2px 6px rgba(0, 0, 0, .35), 0 14px 36px rgba(0, 0, 0, .5);
+    --scrim: rgba(0, 0, 0, .62);
     color-scheme: dark;
   }
 }
@@ -27,6 +29,7 @@
   --good: #3cc23c; --bad: #ef7a73; --fair: #e0b04f;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-2: 0 2px 6px rgba(0, 0, 0, .35), 0 14px 36px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, .62);
   color-scheme: dark;
 }
 
@@ -380,6 +383,34 @@ details.add .field { margin-bottom: 10px; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .toast.err { background: var(--bad); color: #fff; }
 
+/* ---------- Guided tour ---------- */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+/* A dim layer with a hole cut over the step's element, and a ring around the hole. */
+.tour-scrim { position: fixed; inset: 0; background: var(--scrim); transition: clip-path .25s ease; }
+.tour-hole {
+  position: fixed; border-radius: 5px; pointer-events: none; box-shadow: 0 0 0 2px var(--accent);
+  transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease, opacity .2s;
+}
+.tour-hole.none { opacity: 0; }
+.tour-card {
+  position: fixed; width: min(352px, calc(100vw - 24px)); padding: 15px 18px 14px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-2);
+  transition: left .25s ease, top .25s ease; animation: tourin .2s ease;
+}
+@keyframes tourin { from { transform: translateY(6px); } }
+.tour-kicker { display: flex; align-items: center; gap: 12px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tour-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--chip); overflow: hidden; }
+.tour-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width .25s ease; }
+.tour-card h2 { margin: 9px 0 6px; font-size: 17px; line-height: 1.25; letter-spacing: -.01em; }
+.tour-card p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.tour-nav { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.tour-nav .sp { flex: 1; }
+.tour-skip { border: 0; background: none; padding: 6px 2px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tour-skip:hover { color: var(--ink); }
+.tour.intro .tour-card { width: min(420px, calc(100vw - 24px)); padding: 22px 24px 18px; }
+.tour.intro .tour-card h2 { font-size: 21px; margin-top: 6px; }
+.tour.intro .tour-bar { display: none; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .top .brand small { display: none; }
@@ -391,7 +422,7 @@ details.add .field { margin-bottom: 10px; }
   .top { flex-wrap: wrap; gap: 10px; padding: 10px 16px; }
   .search { order: 3; flex-basis: 100%; max-width: none; }
   .top-actions { margin-left: auto; }
-  .app { grid-template-columns: 1fr; grid-template-rows: 62vh auto; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 62vh auto; }   /* minmax: the scrolling tab row mustn't widen the page */
   .mapwrap { order: 1; height: 62vh; }
   .panel { order: 2; border-right: 0; border-top: 1px solid var(--line); }
   .tabbody { overflow: visible; }
@@ -407,11 +438,15 @@ details.add .field { margin-bottom: 10px; }
   .cmp-table thead th:first-child { min-width: 130px; }
   @keyframes slideup { from { transform: translateY(24px); } }
 }
+@media (max-width: 520px) {
+  #tourBtn { padding: 0 9px; }
+  #tourBtn .lbl { display: none; }
+}
 
 /* ---------- Print: the site report only ---------- */
 @media print {
   body { display: block; height: auto; overflow: visible; background: #fff; }
-  .top, .panel, #map, .maptools, .legendcard, .overlay, .toast, .rp-actions, .rp-head .icon-btn { display: none !important; }
+  .top, .panel, #map, .maptools, .legendcard, .overlay, .toast, .tour, .rp-actions, .rp-head .icon-btn { display: none !important; }
   .app, .mapwrap { display: block; }
   .report { position: static; width: auto; border: 0; box-shadow: none; overflow: visible; animation: none; }
   .rp-head { position: static; }

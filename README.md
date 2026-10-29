@@ -27,6 +27,7 @@ Chains like these spend heavily on site research before they sign a lease. Where
 - **Shareable links.** The address bar always holds the current view, lens, filters and open report. Copy link and send it.
 - **Announced openings.** Coming-soon stores from company lists and local reporting, shown on the map and optionally counted in scores. Add your own.
 - **Your own chains.** Add any brand as a new signal or inside an existing one, then load its stores from OpenStreetMap, an All the Places file or a CSV.
+- **Guided tour.** A short, skippable walkthrough of the above opens on a first visit; the Tour button replays it.
 
 ## Data
 

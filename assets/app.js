@@ -1778,6 +1778,7 @@ $("shareBtn").addEventListener("click", copyLink);
 // A link pasted into a tab that already has the site open only changes the part after #, which doesn't reload
 // the page. Apply it in place. (The page's own URL updates use replaceState, which doesn't fire this event.)
 window.addEventListener("hashchange", () => {
+  if (tour) endTour();
   const prevRadius = radius;
   compare = [];
   const at = readUrl();
@@ -2263,6 +2264,185 @@ function cleanUpcoming(list) {
   }));
 }
 
+// ================= Guided tour =================
+// A skippable walkthrough, offered once on a first plain visit and replayable from Tour. It borrows the page
+// (a sample site report, the Top areas and Deals tabs) and puts everything back the way it was when it ends.
+const TOUR_KEY = "rs.tour.v1";
+const TOUR = [
+  { intro: true, title: "Welcome to Retail Signal",
+    text: "The map scores every part of the US by which site-selective chains, like Costco, Trader Joe's and Chick-fil-A, have opened nearby, then adds rents, incomes, growth and new supply on top. This short tour shows what you can do with it." },
+  { el: () => $("lens").parentElement, side: "right", title: "Pick your strategy",
+    text: "Each lens weights the chains and sets starting filters for one kind of buyer: multifamily, single-family, plain retail signal, or Frontier, where early movers have arrived but the big anchors haven't. Fine-tune any of it in the Signals tab." },
+  { el: () => $("legendCard"), side: "right", title: "Read the map",
+    text: "Darker orange means more of the lens's chains within the trade area. Use this menu to shade by something else instead, like rent growth by ZIP code, apartment pipeline by county or income by neighborhood." },
+  { el: () => $("searchForm"), side: "bottom", title: "Search, or click anywhere",
+    text: "Look up an address, city, county or ZIP code, or just click the map. Either way you get a site report for that spot. Press / to jump to search." },
+  { el: () => $("report"), side: "left", report: true, before: () => { $("report").scrollTop = 0; }, title: "Site reports",
+    text: () => `${tour.saved.report ? "This is the report you had open." : "Here's the report for the top-ranked area."} Each one covers the score and national rank, trade-area rent, income and home values, Zillow rent trends for the ZIP code, county growth and building permits, and every nearby chain with a Google Maps link to confirm it.` },
+  { el: () => $("report").querySelector('[data-act="cmp"]'), side: "left", report: true, title: "Compare up to four sites",
+    text: "Add sites from their reports, then click Compare at the top to see them side by side, with the best value in each row highlighted. Export or print the table." },
+  { el: () => $("filterBlock"), tab: "areas", side: "right", title: "Top areas",
+    text: "The best-scoring places under your lens are listed below these controls. Filter by income, affordability, renter share, growth, rent growth and apartment pipeline, rank them your way, and export the list to CSV." },
+  { el: () => $("dealIntro"), tab: "deals", side: "right", title: "Score your own deal list",
+    text: "Upload a CSV of properties with addresses or coordinates. Each one is scored under the current lens and ranked, and your own columns, like units or price, carry through to the export. The list stays in your browser." },
+  { el: () => $("shareBtn"), side: "bottom", title: "Share exactly what you see",
+    text: "The link holds your lens, filters, map view and open report. Copy it, and whoever opens it sees the same thing." },
+  { el: () => $("tourBtn"), side: "bottom", title: "You're all set",
+    text: "Replay this tour anytime from here. Data sources and notes on how scores are built are in the Data tab." },
+];
+let tour = null;
+function startTour() {
+  if (tour) return;
+  tour = {
+    steps: TOUR.filter(s => !s.report || stores.length), i: 0, demo: false, raf: 0, lastFocus: document.activeElement,
+    saved: { tab: document.querySelector(".tabs [aria-selected=true]")?.dataset.tab || "areas", center: map.getCenter(), zoom: map.getZoom(),
+      report: reportAt && { ...reportAt }, cmp: cmpOpen, scrollY: window.scrollY },
+  };
+  local.set(TOUR_KEY, 1);
+  if (cmpOpen) closeCompare();
+  const root = tour.root = document.createElement("div");
+  root.className = "tour";
+  root.innerHTML = `<div class="tour-scrim"></div><div class="tour-hole"></div>
+    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText">
+      <div class="tour-kicker"><span id="tourCount"></span><span class="tour-bar"><i id="tourFill"></i></span></div>
+      <div aria-live="polite"><h2 id="tourTitle"></h2><p id="tourText"></p></div>
+      <div class="tour-nav"><button type="button" class="tour-skip" data-t="skip"></button><span class="sp"></span>
+        <button type="button" class="btn" data-t="back">Back</button><button type="button" class="btn primary" data-t="next"></button></div>
+    </div>`;
+  root.addEventListener("click", e => {
+    const t = e.target.closest("[data-t]")?.dataset.t;
+    if (t === "skip") endTour(); else if (t === "back") stepTour(-1); else if (t === "next") stepTour(1);
+  });
+  document.body.appendChild(root);
+  document.querySelector(".top").inert = true; document.querySelector(".app").inert = true;
+  window.addEventListener("keydown", tourKey, true);
+  window.addEventListener("resize", placeTourSoon);
+  document.addEventListener("scroll", placeTourSoon, true);
+  tour.timer = setInterval(placeTour, 300);   // catches reports re-rendering and panels sliding in
+  showTourStep(0);
+}
+function stepTour(d) {
+  if (d < 0 && tour.i <= 1) return;
+  if (tour.i + d >= tour.steps.length) endTour(); else showTourStep(tour.i + d);
+}
+function showTourStep(i) {
+  const s = tour.steps[i], n = tour.steps.length - 1;
+  tour.i = i;
+  if (s.report) tourReport(); else if (!s.intro && reportAt) closeReport();
+  if (s.tab) showTab(s.tab);
+  s.before?.();
+  tour.root.classList.toggle("intro", !!s.intro);
+  $("tourCount").textContent = s.intro ? "Quick tour" : `${i} of ${n}`;
+  $("tourFill").style.width = `${i / n * 100}%`;
+  $("tourTitle").textContent = s.title;
+  $("tourText").textContent = typeof s.text === "function" ? s.text() : s.text;
+  const btn = t => tour.root.querySelector(`[data-t="${t}"]`);
+  btn("skip").textContent = s.intro ? "Skip" : "Skip tour"; btn("skip").hidden = i === n;
+  btn("back").hidden = i <= 1;
+  btn("next").textContent = s.intro ? "Start the tour" : i === n ? "Done" : "Next";
+  const el = s.el?.();
+  if (el && getComputedStyle(el).position !== "fixed") {
+    // Partly hidden, or no room beside it for the card (a phone): scroll it to the top, leaving the card room below.
+    const r = el.getBoundingClientRect(), v = tourClip(el, 0), card = tour.root.children[2];
+    if (!v || v.top > r.top + 1 || v.bottom < r.bottom - 1 || !tourSide(tourClip(el, 6), card.offsetWidth, card.offsetHeight, s.side)) {
+      let p = el.parentElement;
+      while (p && p !== document.body && !/auto|scroll/.test(getComputedStyle(p).overflowY)) p = p.parentElement;
+      el.scrollIntoView({ block: "start" });
+      (p && p !== document.body ? p : window).scrollBy(0, -12);
+    }
+  }
+  placeTour();
+  btn("next").focus();
+}
+// The step's sample report: the one the visitor had open, or else the top-ranked area.
+function tourReport() {
+  if (reportAt) return;
+  const r = tour.saved.report;
+  if (r) { openReport(r.lat, r.lon, r.label); return; }
+  const c = topItems[0] || { lat: 30.2672, lon: -97.7431 };
+  tour.demo = true;
+  map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 11), { duration: 0.8 });
+  openReport(c.lat, c.lon);
+}
+function placeTourSoon() { if (tour && !tour.raf) tour.raf = requestAnimationFrame(() => { tour.raf = 0; placeTour(); }); }
+// The part of an element (grown by pad) that's actually on screen: inside the viewport and every scrolling panel around it.
+function tourClip(el, pad) {
+  const r = el.getBoundingClientRect();
+  let left = r.left - pad, top = r.top - pad, right = r.right + pad, bottom = r.bottom + pad;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    if (getComputedStyle(p).overflowY === "visible") continue;
+    const b = p.getBoundingClientRect();
+    left = Math.max(left, b.left); top = Math.max(top, b.top); right = Math.min(right, b.right); bottom = Math.min(bottom, b.bottom);
+  }
+  left = Math.max(left, 4); top = Math.max(top, 4);
+  right = Math.min(right, document.documentElement.clientWidth - 4); bottom = Math.min(bottom, window.innerHeight - 4);
+  return r.width && right - left > 8 && bottom - top > 8 ? { left, top, right, bottom } : null;
+}
+// Rings the step's element and sets the card beside it on the preferred side, or whichever side has room.
+function placeTour() {
+  if (!tour) return;
+  const s = tour.steps[tour.i], [scrim, hole, card] = tour.root.children;
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 12, gap = 14;
+  const el = s.el?.();
+  const H = el && el.isConnected ? tourClip(el, 6) : null;
+  // The dim layer gets a rectangular hole (zero-sized and centered when there's nothing to point at).
+  const [l, t, r, b] = H ? [H.left, H.top, H.right, H.bottom] : [vw / 2, vh / 2, vw / 2, vh / 2];
+  scrim.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+  hole.classList.toggle("none", !H);
+  Object.assign(hole.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+  let x = (vw - cw) / 2, y = (vh - ch) / 2;
+  if (H) {
+    const side = tourSide(H, cw, ch, s.side);
+    const midX = clamp((H.left + H.right - cw) / 2, m, vw - cw - m), midY = clamp((H.top + H.bottom - ch) / 2, m, vh - ch - m);
+    if (side === "right") { x = H.right + gap; y = midY; }
+    else if (side === "left") { x = H.left - gap - cw; y = midY; }
+    else if (side === "bottom") { x = midX; y = H.bottom + gap; }
+    else if (side === "top") { x = midX; y = H.top - gap - ch; }
+    else { x = midX; y = vh - ch - m; }   // no free side (a report filling a phone screen): cover its lower part
+  }
+  card.style.left = `${Math.round(x)}px`; card.style.top = `${Math.round(y)}px`;
+}
+// Which side of the ringed area has room for the card, trying the step's preferred side first.
+function tourSide(H, cw, ch, pref) {
+  if (!H) return null;
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 12, gap = 14;
+  const room = { right: vw - H.right - gap - m, left: H.left - gap - m, bottom: vh - H.bottom - gap - m, top: H.top - gap - m };
+  return [pref, "bottom", "top", "right", "left"].find(k => k && room[k] >= (k === "left" || k === "right" ? cw : ch)) || null;
+}
+function tourKey(e) {
+  if (e.key === "Escape") endTour();
+  else if (e.key === "ArrowRight") stepTour(1);
+  else if (e.key === "ArrowLeft") stepTour(-1);
+  else if (e.key === "Tab") {
+    const f = [...tour.root.querySelectorAll("button:not([hidden])")];
+    const k = f.indexOf(document.activeElement);
+    f[(k + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+  } else if (e.key !== "/") return;
+  e.preventDefault(); e.stopPropagation();   // keep the map's own shortcuts (Escape, /) out of it
+}
+function endTour() {
+  if (!tour) return;
+  const { saved, root, lastFocus, demo } = tour;
+  clearInterval(tour.timer); cancelAnimationFrame(tour.raf);
+  window.removeEventListener("keydown", tourKey, true);
+  window.removeEventListener("resize", placeTourSoon);
+  document.removeEventListener("scroll", placeTourSoon, true);
+  root.remove();
+  tour = null;
+  document.querySelector(".top").inert = false; document.querySelector(".app").inert = false;
+  showTab(saved.tab);
+  const r = saved.report;
+  if (r && !(reportAt && reportAt.lat === r.lat && reportAt.lon === r.lon)) openReport(r.lat, r.lon, r.label);
+  else if (!r && reportAt) closeReport();
+  if (demo) { map.stop(); map.setView(saved.center, saved.zoom, { animate: false }); }
+  if (saved.cmp) openCompare();
+  if (window.scrollY !== saved.scrollY) window.scrollTo(0, saved.scrollY);
+  if (lastFocus && lastFocus !== document.body && lastFocus.isConnected) lastFocus.focus();
+}
+$("tourBtn").addEventListener("click", startTour);
+
 // ================= Start =================
 // Some store locators publish cities in capitals ("ARLINGTON"); show them in title case.
 const tidyCity = c => c && c === c.toUpperCase() && /[A-Z]{3}/.test(c) ? c.toLowerCase().replace(/(^|[\s\-'.])([a-z])/g, (m, p, ch) => p + ch.toUpperCase()) : c;
@@ -2293,6 +2473,8 @@ async function start() {
     $("overlay").hidden = true;
     if (compare.length) afterCompareChange();
     if (at) openReport(at.lat, at.lon);
+    // First visit: offer the tour, unless a shared link brought them to a specific report or comparison.
+    else if (!compare.length && !local.get(TOUR_KEY)) setTimeout(startTour, 400);
   } catch (e) {
     console.error(e);
     $("overlay").classList.add("err");
