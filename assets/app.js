@@ -2044,6 +2044,14 @@ function parseGroup(json, g) {
   }
   return out;
 }
+// Each chain's source is where most of its stores came from. It decides what the OpenStreetMap refresh may replace,
+// so a chain mostly from All the Places, topped up from OpenStreetMap, keeps its better data.
+function tagBrandSources() {
+  const n = {};
+  for (const s of stores) (n[s.b] ||= {})[s.src] = (n[s.b]?.[s.src] || 0) + 1;
+  brandSrc = {};
+  for (const [b, by] of Object.entries(n)) brandSrc[b] = Object.keys(by).reduce((a, c) => by[c] > by[a] ? c : a);
+}
 // Replace a set of brands' stores with new ones, recording the source.
 function replaceBrands(got, brandNames) {
   const set = new Set(brandNames);
@@ -2184,8 +2192,7 @@ function loadSaved(data) {
   const SRCS = ["OpenStreetMap", "All the Places", "CSV"];
   stores = rows.filter(r => Array.isArray(r) && brandByName.has(r[0]) && inUS(r[1], r[2]))
     .map(r => ({ g: brandByName.get(r[0]).g, b: r[0], lat: r[1], lon: r[2], city: tidyCity(str(r[3], 80)), st: toAbbr(str(r[4], 30)), src: SRCS.includes(r[5]) ? r[5] : "OpenStreetMap" }));
-  brandSrc = {};
-  for (const s of stores) brandSrc[s.b] = s.src;
+  tagBrandSources();
   if (Array.isArray(data.upcoming)) upcoming = cleanUpcoming(data.upcoming);
   // Older saved files don't record which brands were fetched, so treat a brand with stores as loaded.
   loadedBrands = new Set((Array.isArray(data.loaded) ? data.loaded : []).filter(n => brandByName.has(n)));
@@ -2452,8 +2459,7 @@ function applyBundledStores(j) {
     const b = brandByName.get(j.brands[bi]); if (!b) continue;
     stores.push({ g: b.g, b: b.name, lat, lon, city: places[pi].city, st: places[pi].st, src: j.srcs[si] });
   }
-  brandSrc = {};
-  for (const s of stores) brandSrc[s.b] = s.src;
+  tagBrandSources();
   loadedBrands = new Set((j.loaded || []).filter(n => brandByName.has(n)));
   for (const s of stores) loadedBrands.add(s.b);
   gState = GROUPS.map((g, i) => groupComplete(i) ? "done" : "idle");
