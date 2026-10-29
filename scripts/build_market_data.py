@@ -5,15 +5,17 @@ Everything comes from free bulk downloads that need no API key:
   - ACS 5-year table-based summary files (Census), by tract and county
   - Census tract internal points and land area (Census Gazetteer)
   - County population estimates, 2020 to latest vintage (Census PEP)
-  - County home values (ZHVI) and rents (ZORI) (Zillow Research)
+  - County building permits by structure size (Census Building Permits Survey)
+  - County and ZIP home values (ZHVI) and rents (ZORI) (Zillow Research)
+  - ZIP code (ZCTA) internal points and land area (Census Gazetteer)
   - County boundaries (us-atlas, from Census cartographic files)
 
 Usage:
-  python3 scripts/build_market_data.py [--acs 2024] [--pep 2025] [--cache .cache]
+  python3 scripts/build_market_data.py [--acs auto] [--pep auto] [--cache .cache]
 
-Writes data/tracts.json, data/counties.json and data/counties-10m.json.
+Writes data/tracts.json, data/counties.json, data/zips.json and data/counties-10m.json.
 """
-import argparse, csv, io, json, os, re, sys, urllib.request, zipfile
+import argparse, csv, hashlib, io, json, os, re, sys, urllib.request, zipfile
 from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,10 +23,17 @@ DATA = os.path.join(ROOT, "data")
 
 ACS_URL = "https://www2.census.gov/programs-surveys/acs/summary_file/{y}/table-based-SF/data/5YRData/acsdt5y{y}-{t}.dat"
 GAZ_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{y}_Gazetteer/{y}_Gaz_tracts_national.zip"
+GAZ_ZCTA_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{y}_Gazetteer/{y}_Gaz_zcta_national.zip"
 PEP_URL = "https://www2.census.gov/programs-surveys/popest/datasets/2020-{y}/counties/totals/co-est{y}-alldata.csv"
-ZHVI_URL = "https://files.zillowstatic.com/research/public_csvs/zhvi/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
-ZORI_URL = "https://files.zillowstatic.com/research/public_csvs/zori/County_zori_uc_sfrcondomfr_sm_month.csv"
-ATLAS_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json"
+BPS_URL = "https://www2.census.gov/econ/bps/County/co{code}.txt"   # code: yyyya (annual) or yymmy (year to date)
+ZILLOW = "https://files.zillowstatic.com/research/public_csvs/"
+ZHVI_URL = ZILLOW + "zhvi/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
+ZORI_URL = ZILLOW + "zori/County_zori_uc_sfrcondomfr_sm_month.csv"
+ZHVI_ZIP_URL = ZILLOW + "zhvi/Zip_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
+ZORI_ZIP_URL = ZILLOW + "zori/Zip_zori_uc_sfrcondomfr_sm_month.csv"
+# County outlines are pinned to one release and checked, since they're published to every visitor as-is.
+ATLAS_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/counties-10m.json"
+ATLAS_SHA256 = "145aaf5d1433352a6a1d8e86b5f149c7c653f9171baf14aaf75ee66575def1b0"
 
 # Output field -> (table, line numbers summed). Raw counts are kept so the map can combine neighborhoods.
 FIELDS = {
@@ -143,16 +152,22 @@ def read_pep(year, cache):
     return out
 
 
-def read_zillow(url, cache, name, horizons):
+def read_zillow(url, cache, name, horizons, zip_level=False):
     path = fetch(url, cache, name)
     out, latest = {}, None
     with open(path, encoding="utf-8") as f:
         rows = csv.reader(f)
         head = next(rows)
         dcols = [i for i, h in enumerate(head) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", h)]
-        h = {k: head.index(k) for k in ("StateCodeFIPS", "MunicipalCodeFIPS", "Metro")}
+        keys = ("RegionName", "Metro") if zip_level else ("StateCodeFIPS", "MunicipalCodeFIPS", "Metro")
+        h = {k: head.index(k) for k in keys}
         for r in rows:
-            fips = r[h["StateCodeFIPS"]].zfill(2) + r[h["MunicipalCodeFIPS"]].zfill(3)
+            if zip_level:
+                fips = r[h["RegionName"]].zfill(5)
+                if not re.fullmatch(r"\d{5}", fips):
+                    continue
+            else:
+                fips = r[h["StateCodeFIPS"]].zfill(2) + r[h["MunicipalCodeFIPS"]].zfill(3)
             series = [(head[i], float(r[i])) for i in dcols if r[i]]
             if not series:
                 continue
@@ -167,6 +182,43 @@ def read_zillow(url, cache, name, horizons):
             out[fips] = rec
             latest = max(latest or "", month[:7])
     return out, latest
+
+
+def read_permits(cache):
+    """Units permitted per county in 1-unit and 5+ unit buildings: the latest full year, and the last three.
+
+    Only annual files are used. The monthly county files count just the places that reported that month,
+    so a county whose main city skips a month looks like its permits collapsed; the annual files fill those in.
+    """
+    def load(code):
+        path = fetch(BPS_URL.format(code=code), cache, f"bps-{code}.txt")
+        out = {}
+        with open(path, encoding="latin-1") as f:
+            for r in csv.reader(f):
+                if len(r) < 18 or not r[1].strip().isdigit() or not r[2].strip().isdigit():
+                    continue
+                out[r[1].strip().zfill(2) + r[2].strip().zfill(3)] = (int(r[7] or 0), int(r[16] or 0))
+        return out
+
+    last = latest_year("auto", lambda y: BPS_URL.format(code=f"{y}a"))
+    ann = [load(f"{y}a") for y in (last, last - 1, last - 2)]
+    out = {}
+    for fips, (p1, p5) in ann[0].items():
+        out[fips] = {"p1": p1, "p5": p5, "p5_36": sum(a.get(fips, (0, 0))[1] for a in ann)}
+    return out, last
+
+
+def read_zcta(year, cache):
+    path = fetch(GAZ_ZCTA_URL.format(y=year), cache, f"gaz{year}_zcta.zip")
+    out = {}
+    with zipfile.ZipFile(path) as z:
+        with z.open(z.namelist()[0]) as raw:
+            rows = csv.reader(io.TextIOWrapper(raw, encoding="latin-1"), delimiter="\t")
+            head = [h.strip() for h in next(rows)]
+            g, a, la, lo = (head.index(k) for k in ("GEOID", "ALAND", "INTPTLAT", "INTPTLONG"))
+            for r in rows:
+                out[r[g].strip()] = (float(r[la]), float(r[lo].strip()), int(r[a]))
+    return out
 
 
 def main():
@@ -190,7 +242,16 @@ def main():
     print("Zillow…", file=sys.stderr)
     zhvi, zhvi_m = read_zillow(ZHVI_URL, a.cache, "zhvi_county.csv", {"g1": 12, "g5": 60})
     zori, zori_m = read_zillow(ZORI_URL, a.cache, "zori_county.csv", {"g1": 12, "g3": 36})
-    atlas = fetch(ATLAS_URL, a.cache, "counties-10m.json")
+    zhvi_z, _ = read_zillow(ZHVI_ZIP_URL, a.cache, "zhvi_zip.csv", {"g1": 12, "g5": 60}, zip_level=True)
+    zori_z, _ = read_zillow(ZORI_ZIP_URL, a.cache, "zori_zip.csv", {"g1": 12, "g3": 36}, zip_level=True)
+    print("Building permits…", file=sys.stderr)
+    permits, permits_m = read_permits(a.cache)
+    print("ZIP locations…", file=sys.stderr)
+    zcta = read_zcta(a.gaz, a.cache)
+    atlas = fetch(ATLAS_URL, a.cache, "us-atlas-3.0.1-counties-10m.json")
+    with open(atlas, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != ATLAS_SHA256:
+            sys.exit("The county outlines file doesn't match the pinned release. Not writing data.")
 
     def ival(v):
         return None if v is None else int(round(v))
@@ -231,17 +292,34 @@ def main():
         if fips in zori:
             z = zori[fips]; c.update({"zori": z["v"], "zori1": z["g1"], "zori3": z["g3"]})
             c.setdefault("metro", z["metro"])
+        if fips in permits:
+            c.update(permits[fips])
         counties[fips] = {k: v for k, v in c.items() if v is not None}
-    meta = {"acs": f"{a.acs - 4}–{a.acs}", "pep": a.pep, "zhvi": zhvi_m, "zori": zori_m}
+    meta = {"acs": f"{a.acs - 4}–{a.acs}", "pep": a.pep, "zhvi": zhvi_m, "zori": zori_m, "permits": permits_m}
+
+    # ZIPs with any Zillow series, placed at the ZIP code tabulation area's internal point.
+    zcols = {k: [] for k in ("zip", "lat", "lon", "area_k", "zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3")}
+    for z in sorted(set(zhvi_z) | set(zori_z)):
+        pt = zcta.get(z)
+        if not pt:
+            continue
+        hv, rt = zhvi_z.get(z, {}), zori_z.get(z, {})
+        for k, v in (("zip", z), ("lat", round(pt[0] * 1e4)), ("lon", round(pt[1] * 1e4)), ("area_k", max(1, round(pt[2] / 1000))),
+                     ("zhvi", hv.get("v")), ("zhvi1", hv.get("g1")), ("zhvi5", hv.get("g5")),
+                     ("zori", rt.get("v")), ("zori1", rt.get("g1")), ("zori3", rt.get("g3"))):
+            zcols[k].append(v)
+    zips = {"n": len(zcols["zip"]), "cols": zcols}
 
     os.makedirs(DATA, exist_ok=True)
     with open(os.path.join(DATA, "tracts.json"), "w") as f:
         json.dump(tracts, f, separators=(",", ":"))
     with open(os.path.join(DATA, "counties.json"), "w") as f:
         json.dump({"meta": meta, "counties": counties}, f, separators=(",", ":"))
+    with open(os.path.join(DATA, "zips.json"), "w") as f:
+        json.dump(zips, f, separators=(",", ":"))
     with open(atlas) as src, open(os.path.join(DATA, "counties-10m.json"), "w") as dst:
         dst.write(src.read())
-    print(f"Wrote {len(rows):,} tracts ({missing} without a location), {len(counties):,} counties. {meta}", file=sys.stderr)
+    print(f"Wrote {len(rows):,} tracts ({missing} without a location), {len(counties):,} counties, {zips['n']:,} ZIPs. {meta}", file=sys.stderr)
 
 
 if __name__ == "__main__":

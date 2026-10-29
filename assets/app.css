@@ -116,7 +116,15 @@ a { color: var(--accent); }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { color: var(--ink); }
 .tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--ink); }
-.tabs .count { font-weight: 600; font-size: 11px; color: var(--muted); background: var(--chip); border-radius: 10px; padding: 1px 6px; margin-left: 4px; }
+.tabs .count, .top-actions .count { font-weight: 600; font-size: 11px; color: var(--muted); background: var(--chip); border-radius: 10px; padding: 1px 6px; margin-left: 4px; }
+.tabs .count:empty, .top-actions .count:empty { display: none; }
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; white-space: nowrap; padding-left: 7px; padding-right: 7px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.btn.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.toplist li.na { cursor: default; opacity: .7; }
+.toplist li.na:hover { background: none; }
 .tabbody { flex: 1; overflow-y: auto; padding: 4px 16px 32px; scrollbar-gutter: stable; }
 .pane > .block { padding: 14px 0; border-bottom: 1px solid var(--line-2); }
 .pane > .block:last-child { border-bottom: 0; }
@@ -322,6 +330,39 @@ details.add .field { margin-bottom: 10px; }
 .rp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); }
 .rp-actions .btn { flex: 1; }
 
+/* ---------- Map pins: compare (numbered, blue) and deal list (ranked, ink) ---------- */
+.pin { display: grid !important; place-items: center; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); font: 700 11px/1 var(--font); color: #fff; }
+.cmp-pin { background: #2a78d6; }
+.deal-pin { background: #111110; border-radius: 6px; }
+:root[data-theme="dark"] .deal-pin { background: #f0efec; color: #111110; border-color: #1a1a19; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .deal-pin { background: #f0efec; color: #111110; border-color: #1a1a19; } }
+
+/* ---------- Compare ---------- */
+.cmp {
+  position: absolute; inset: 12px; z-index: 14; display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-2);
+}
+.cmp-head { display: flex; gap: 16px; align-items: flex-start; padding: 16px 14px 12px 18px; border-bottom: 1px solid var(--line-2); }
+.cmp-head > div:first-child { flex: 1; }
+.cmp-head h2 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
+.cmp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.cmp-scroll { flex: 1; overflow: auto; padding: 0 18px; }
+.cmp-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cmp-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); text-align: left; vertical-align: top; padding: 14px 12px 10px; border-bottom: 1px solid var(--line); min-width: 180px; }
+.cmp-table thead th:first-child { min-width: 200px; }
+.cmp-site { display: grid; grid-template-columns: 24px 1fr 28px; gap: 8px; align-items: start; }
+.cmp-site b { display: block; font-size: 14px; line-height: 1.25; }
+.cmp-site small { display: block; color: var(--muted); font-weight: 500; font-size: 12px; margin-top: 2px; }
+.cmp-site .icon-btn { width: 28px; height: 28px; }
+.cmp-site .icon-btn svg { width: 15px; height: 15px; }
+.pin-n { width: 22px; height: 22px; border-radius: 50%; background: #2a78d6; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+.cmp-table thead .linkish { margin: 6px 0 0 32px; }
+.cmp-table tbody th { text-align: left; font-weight: 500; color: var(--ink-2); padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line-2); }
+.cmp-table td { padding: 7px 12px; border-bottom: 1px solid var(--line-2); color: var(--ink); }
+.cmp-table td.best { font-weight: 700; background: var(--accent-soft); }
+.cmp-table tr.sec th { padding: 18px 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+.cmp-foot { padding: 8px 18px 14px; margin: 0; }
+
 /* ---------- Overlay, toast ---------- */
 .overlay { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: color-mix(in srgb, var(--page) 55%, transparent); backdrop-filter: blur(2px); }
 .overlay .ocard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-2); padding: 20px 22px; max-width: 340px; display: grid; gap: 6px; justify-items: center; text-align: center; }
@@ -360,6 +401,10 @@ details.add .field { margin-bottom: 10px; }
   .mapwrap.has-report .maptools { right: 10px; }
   .mapwrap.has-report .leaflet-bottom.leaflet-right { right: 0; }
   .report { position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 82dvh; border-radius: 16px 16px 0 0; animation-name: slideup; }
+  .cmp { position: fixed; inset: 0; z-index: 30; border-radius: 0; }
+  .cmp-head { flex-wrap: wrap; }
+  .cmp-table thead th { min-width: 150px; }
+  .cmp-table thead th:first-child { min-width: 130px; }
   @keyframes slideup { from { transform: translateY(24px); } }
 }
 
@@ -371,6 +416,13 @@ details.add .field { margin-bottom: 10px; }
   .report { position: static; width: auto; border: 0; box-shadow: none; overflow: visible; animation: none; }
   .rp-head { position: static; }
   .chains li, .kpi, .mkt div { break-inside: avoid; }
+  /* With compare open, print the comparison instead of the report. */
+  body.cmp-open .report { display: none !important; }
+  .cmp { position: static; border: 0; box-shadow: none; }
+  .cmp-actions, .cmp-site .icon-btn, .cmp-table thead .linkish { display: none !important; }
+  .cmp-scroll { overflow: visible; padding: 0; }
+  .cmp-table thead th { position: static; min-width: 0; }
+  .cmp-table tr { break-inside: avoid; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

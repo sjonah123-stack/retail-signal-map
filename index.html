@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Only this site, the Leaflet CDN, map tiles and the two OpenStreetMap services may be reached. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://server.arcgisonline.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com; connect-src 'self' https://nominatim.openstreetmap.org https://overpass-api.de https://overpass.kumi.systems https://maps.mail.ru; font-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Retail Signal · Site selection map</title>
 <meta name="description" content="Find multifamily and single-family sites where site-selective retailers cluster, with neighborhood rents, incomes, home values and county growth.">
 <meta property="og:title" content="Retail Signal · Site selection map">
@@ -11,9 +14,9 @@
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://server.arcgisonline.com">
 <link rel="preload" href="data/stores.json" as="fetch" crossorigin>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/app.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <script src="assets/app.js" defer></script>
 </head>
 <body>
@@ -28,6 +31,7 @@
     <kbd>/</kbd>
   </form>
   <div class="top-actions">
+    <button class="btn" id="cmpBtn" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>Compare<span class="count" id="cmpCount"></span></button>
     <button class="btn" id="shareBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1-1"/></svg>Copy link</button>
   </div>
 </header>
@@ -41,6 +45,7 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Panels">
       <button role="tab" id="tab-areas" data-tab="areas" aria-selected="true" aria-controls="pane-areas">Top areas</button>
+      <button role="tab" id="tab-deals" data-tab="deals" aria-selected="false" aria-controls="pane-deals">Deals<span class="count" id="dealCountBadge"></span></button>
       <button role="tab" id="tab-signals" data-tab="signals" aria-selected="false" aria-controls="pane-signals">Signals</button>
       <button role="tab" id="tab-openings" data-tab="openings" aria-selected="false" aria-controls="pane-openings">Openings<span class="count" id="upCountBadge"></span></button>
       <button role="tab" id="tab-data" data-tab="data" aria-selected="false" aria-controls="pane-data">Data</button>
@@ -73,15 +78,44 @@
               <option value="0">Any</option><option value="20">20%</option><option value="30">30%</option><option value="40">40%</option><option value="50">50%</option></select></label>
             <label class="field"><span>County growth since 2020</span><select id="fPop" class="inp">
               <option value="-999">Any</option><option value="0">0%+</option><option value="3">3%+</option><option value="6">6%+</option><option value="10">10%+</option></select></label>
-            <label class="field"><span>County rent growth, 1 yr</span><select id="fRent" class="inp">
+            <label class="field"><span>Rent growth, 1 yr</span><select id="fRent" class="inp">
               <option value="-999">Any</option><option value="0">0%+</option><option value="2">2%+</option><option value="4">4%+</option></select></label>
+            <label class="field"><span>Apartment pipeline at most</span><select id="fPipe" class="inp">
+              <option value="0">Any</option><option value="6">6% of stock</option><option value="9">9% of stock</option><option value="12">12% of stock</option></select></label>
+          </div>
+          <div class="grid2" style="margin-top:10px">
             <label class="field"><span>Rank by</span><select id="sortBy" class="inp">
-              <option value="score">Signal score</option><option value="popg">Population growth</option><option value="dmig">Domestic migration</option><option value="zori1">Rent growth</option><option value="inc">Income</option><option value="pti">Most affordable</option><option value="yld">Gross yield</option></select></label>
+              <option value="score">Signal score</option><option value="popg">Population growth</option><option value="dmig">Domestic migration</option><option value="zori1">Rent growth</option><option value="inc">Income</option><option value="pti">Most affordable</option><option value="yld">Gross yield</option><option value="mfpipe">Least new supply</option></select></label>
+            <label class="field"><span>&nbsp;</span><button id="topExport" class="btn block" type="button">Export CSV</button></label>
           </div>
           <label class="check"><input type="checkbox" id="inView"> Only areas in the current map view</label>
         </div>
         <ol id="top" class="toplist" aria-label="Top areas"></ol>
         <p class="empty-note" id="topEmpty">Loading store data…</p>
+      </section>
+
+      <section class="pane" id="pane-deals" role="tabpanel" aria-labelledby="tab-deals" hidden>
+        <div class="block">
+          <p class="hint">Upload a CSV of properties (your pipeline or a broker's list) to score every one under the current lens, rank them and export the results. Columns: a name (optional), and either an address (or street, city, state, ZIP) or latitude and longitude. Any other columns, like units or price, carry through to the export.</p>
+          <div class="row">
+            <button id="dealUpload" class="btn primary" type="button">Upload CSV</button>
+            <button id="dealTemplate" class="btn" type="button">Download template</button>
+            <input type="file" id="dealFile" accept=".csv,.tsv,text/csv,text/tab-separated-values" hidden>
+          </div>
+          <div class="progress" id="dealProg"><i></i></div>
+          <p class="status" id="dealStatus" role="status"></p>
+          <p class="hint muted" style="margin:10px 0 0">Your list stays in this browser. Rows without coordinates are looked up with OpenStreetMap's geocoder (one per second, up to 100 per upload), which sends it the address text; include latitude and longitude to skip that.</p>
+        </div>
+        <div class="block" id="dealResults" hidden>
+          <h3 class="sh"><span id="dealHead"></span><span class="pill" id="dealLens"></span></h3>
+          <div class="row">
+            <button id="dealExport" class="btn" type="button">Export CSV</button>
+            <button id="dealCompare" class="btn" type="button">Compare top 4</button>
+            <button id="dealClear" class="btn" type="button">Clear</button>
+          </div>
+          <div class="row"><button id="dealMore" class="btn" type="button" hidden>Locate the rest</button></div>
+          <ol id="dealList" class="toplist" aria-label="Scored deals"></ol>
+        </div>
       </section>
 
       <section class="pane" id="pane-signals" role="tabpanel" aria-labelledby="tab-signals" hidden>
@@ -154,6 +188,11 @@
           <p>Every cell of the map (about 1.7 miles across at a 5-mile radius) scores the weights of the signals with a store within the radius. Shading starts at the threshold you set in Top areas.</p>
           <p>Neighborhood figures combine the census tracts whose centers fall inside the trade area, weighted by households. They're averages of tract medians, a good screen but not a true median.</p>
           <p>The percentage beside each chain in Signals compares the stores found with the chain's latest reported count. Brand-new stores often reach Google Maps first, so use the links in each site report to confirm what's open.</p>
+          <p>ZIP figures come from the nearest ZIP code with Zillow data, so near a ZIP boundary they may describe the neighboring ZIP. Apartment pipeline compares units permitted in 5+ unit buildings over three years with the county's existing apartment stock; permits aren't starts, and some never get built.</p>
+        </div>
+        <div class="block prose">
+          <h3 class="sh">Privacy</h3>
+          <p>No accounts, cookies or analytics. Uploaded deal lists are kept only in this browser's local storage. Searches and deal-list addresses without coordinates go to OpenStreetMap's Nominatim geocoder; map tiles come from Esri. Clearing a deal list removes it from this browser.</p>
         </div>
       </section>
     </div>
@@ -181,6 +220,7 @@
       </div>
     </div>
     <aside class="report" id="report" hidden aria-label="Site report"></aside>
+    <section class="cmp" id="cmp" hidden aria-label="Compare sites"></section>
     <div class="overlay" id="overlay"><div class="ocard"><div class="spinner"></div><b id="oTitle">Loading store locations…</b><p id="oText">About 38,000 stores across 40 chains.</p></div></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>

@@ -113,7 +113,7 @@ const PRESETS = [
 ];
 
 // A lens is a starting point: a weighting, a scoring mode and a set of filters for one kind of buyer.
-const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999 };
+const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999, pipe: 0 };
 const LENSES = [
   { id: "mf", name: "Multifamily", short: "Renter demand near lifestyle retail", preset: "mf", mode: "score", filters: { renter: 30, popg: 0 },
     icon: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',
@@ -133,7 +133,7 @@ const LENS_KPIS = {
   sf: ["hv", "pti", "inc", "yb", "renter", "bach", "rent", "yld", "dens", "vac", "mf5", "pop"],
   retail: ["inc", "hv", "rent", "bach", "pti", "renter", "yld", "dens", "yb", "vac", "mf5", "pop"],
 };
-const LENS_CHIPS = { mf: ["renter", "rent", "popg"], sf: ["inc", "pti", "popg"], retail: ["inc", "hv", "popg"], frontier: ["inc", "pti", "popg"] };
+const LENS_CHIPS = { mf: ["renter", "rent", "popg", "mfpipe"], sf: ["inc", "pti", "popg"], retail: ["inc", "hv", "popg"], frontier: ["inc", "pti", "popg"] };
 
 const STATUS_LABEL = { opened: "Just opened", dated: "Date set", planned: "Planned", proposed: "Proposed" };
 const STATE_ABBR = { alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",colorado:"CO",connecticut:"CT",delaware:"DE","district of columbia":"DC",
@@ -186,17 +186,23 @@ const METRICS = {
   popg: { name: "Population growth since 2020", scope: "c", breaks: [-2, 0, 3, 6, 10], colors: DIV, tick: T.chg, note: "Census estimates, July 2020 to July 2025." },
   popg1: { name: "Population growth, last year", scope: "c", breaks: [-0.5, 0, 0.5, 1, 2], colors: DIV, tick: T.chg, note: "Census estimates, July 2024 to July 2025." },
   dmig: { name: "Net domestic migration", scope: "c", breaks: [-3, 0, 2, 5, 10], colors: DIV, tick: T.chg, note: "People moving in from other US counties minus those leaving, 2021–25, as a share of 2020 population." },
-  zori1: { name: "Rent change, 1 yr", scope: "c", breaks: [0, 2, 3, 4, 6], colors: DIV, tick: T.chg, note: "Zillow Observed Rent Index." },
-  zori3: { name: "Rent change, 3 yr", scope: "c", breaks: [5, 10, 15, 20, 25], colors: DIV, tick: T.chg, note: "Zillow Observed Rent Index." },
-  zhvi1: { name: "Home value change, 1 yr", scope: "c", breaks: [-4, -2, 0, 2, 4], colors: DIV, tick: T.chg, note: "Zillow Home Value Index, mid-tier homes." },
-  zhvi5: { name: "Home value change, 5 yr", scope: "c", breaks: [10, 20, 30, 40, 55], colors: DIV, tick: T.chg, note: "Zillow Home Value Index, mid-tier homes." },
-  zori: { name: "Typical rent (Zillow)", scope: "c", breaks: [1000, 1300, 1600, 2000, 2600], colors: VIOLET, tick: T.dollars, note: "Zillow Observed Rent Index, all rental types." },
-  zhvi: { name: "Typical home value (Zillow)", scope: "c", breaks: [150000, 250000, 350000, 500000, 750000], colors: VIOLET, tick: T.money, note: "Zillow Home Value Index, mid-tier homes." },
+  mfpipe: { name: "Apartment pipeline", scope: "c", breaks: [3, 6, 9, 12, 16], colors: DIV_R, tick: T.pct, note: "Units permitted in 5+ unit buildings over the last three years, as a share of existing apartment stock. Red means heavy new supply." },
+  mfp: { name: "Apartment permits per 1,000 people", scope: "c", breaks: [0.5, 1, 2, 4, 6], colors: VIOLET, tick: String, note: "Units permitted in 5+ unit buildings in the latest full year, per 1,000 residents." },
+  sfp: { name: "Single-family permits per 1,000 people", scope: "c", breaks: [1, 2, 4, 6, 10], colors: VIOLET, tick: String, note: "Single-family homes permitted in the latest full year, per 1,000 residents." },
+  // Zillow series draw by ZIP code when zoomed in (over county shading) and by county when zoomed out.
+  zori1: { name: "Rent change, 1 yr", scope: "c", zip: true, breaks: [0, 2, 3, 4, 6], colors: DIV, tick: T.chg, note: "Zillow Observed Rent Index." },
+  zori3: { name: "Rent change, 3 yr", scope: "c", zip: true, breaks: [5, 10, 15, 20, 25], colors: DIV, tick: T.chg, note: "Zillow Observed Rent Index." },
+  zhvi1: { name: "Home value change, 1 yr", scope: "c", zip: true, breaks: [-4, -2, 0, 2, 4], colors: DIV, tick: T.chg, note: "Zillow Home Value Index, mid-tier homes." },
+  zhvi5: { name: "Home value change, 5 yr", scope: "c", zip: true, breaks: [10, 20, 30, 40, 55], colors: DIV, tick: T.chg, note: "Zillow Home Value Index, mid-tier homes." },
+  zori: { name: "Typical rent (Zillow)", scope: "c", zip: true, breaks: [1000, 1300, 1600, 2000, 2600], colors: VIOLET, tick: T.dollars, note: "Zillow Observed Rent Index, all rental types." },
+  zhvi: { name: "Typical home value (Zillow)", scope: "c", zip: true, breaks: [150000, 250000, 350000, 500000, 750000], colors: VIOLET, tick: T.money, note: "Zillow Home Value Index, mid-tier homes." },
 };
+const hasMetric = k => typeof k === "string" && Object.hasOwn(METRICS, k);   // keys arrive from links, so skip inherited names
 const COLOR_GROUPS = [
   ["Neighborhoods (Census ACS)", ["inc", "hv", "rent", "pti", "yld", "renter", "vac", "mf5", "yb", "bach", "dens"]],
   ["County growth (Census estimates)", ["popg", "popg1", "dmig"]],
-  ["County market (Zillow)", ["zori1", "zori3", "zhvi1", "zhvi5", "zori", "zhvi"]],
+  ["Housing supply (Census permits)", ["mfpipe", "mfp", "sfp"]],
+  ["Market trends by ZIP and county (Zillow)", ["zori1", "zori3", "zhvi1", "zhvi5", "zori", "zhvi"]],
 ];
 
 // ================= State =================
@@ -226,7 +232,12 @@ let reportAt = null;              // {lat, lon, label}
 // Market data
 let counties = [], countyIdx = new Map(), cdata = new Map(), marketMeta = null;
 let tracts = [], tractBuckets = new Map();
-const market = { counties: false, tracts: false, error: false };
+let zips = [], zipBuckets = new Map();
+const market = { counties: false, tracts: false, zips: false, error: false };
+// Sites pinned for side-by-side comparison, and the uploaded deal list.
+const MAX_COMPARE = 4;
+let compare = [];                 // {lat, lon, label}
+let deals = [], dealHeaders = []; // {name, query, lat, lon, row, status}
 const countyCache = new Map(), taCache = new Map();
 
 // ================= Helpers =================
@@ -253,6 +264,11 @@ const big = n => n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 1 :
 const tone = v => v == null ? "" : v > 0 ? "up" : v < 0 ? "dn" : "";
 const monthName = ym => { if (!ym) return ""; const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" }); };
 const groupVisible = g => viewMode === "frontier" ? roles[g] !== "none" : weights[g] > 0;
+// Coordinates from files and links are checked against the US (incl. Alaska, Hawaii, Puerto Rico): out-of-range
+// values would make the grid loops run for billions of steps.
+const inUS = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && lat >= 17 && lat <= 72 && lon >= -180 && lon <= -60;
+const safeColor = c => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c) ? c : null;
+const str = (v, max = 200) => v == null ? "" : String(v).slice(0, max);
 const ICON_EXT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
@@ -543,6 +559,7 @@ function rescore() {
   updateTop();
   renderLensDesc();
   if (reportAt) renderReport();
+  renderDeals(); renderCompare();
   syncUrl();
 }
 
@@ -555,7 +572,7 @@ function topShare(score) {
 }
 
 function refreshAll() {
-  const all = stores.concat(extraScoring());
+  const all = stores.concat(extraScoring()).filter(s => inUS(s.lat, s.lon));
   buildStoreBuckets(all);
   computeGrid(all);
   computeLate(all);
@@ -656,7 +673,11 @@ function setCountyData(j) {
   cdata = new Map();
   for (const [fips, d] of Object.entries(j.counties)) {
     if (d.name) d.name = d.name.replace(/^(.+), \1$/, "$1");   // "District of Columbia, District of Columbia"
-    cdata.set(fips, Object.assign({ fips }, d, derive(d)));
+    const c = Object.assign({ fips }, d, derive(d));
+    // Housing supply from building permits: latest full year per 1,000 people, and three years against apartment stock.
+    if (d.pep && d.p5 != null) { c.mfp = d.p5 / d.pep * 1000; c.sfp = d.p1 / d.pep * 1000; }
+    if (d.mf5n && d.p5_36 != null) c.mfpipe = d.p5_36 / d.mf5n * 100;
+    cdata.set(fips, c);
   }
   countyCache.clear();
 }
@@ -676,6 +697,33 @@ function setTracts(j) {
     let a = tractBuckets.get(k); if (!a) tractBuckets.set(k, a = []); a.push(t);
   }
   taCache.clear(); countyCache.clear();
+}
+function setZips(j) {
+  const c = j.cols, list = [];
+  for (let i = 0; i < j.n; i++) {
+    const z = { zip: String(c.zip[i]), lat: c.lat[i] / 1e4, lon: c.lon[i] / 1e4, area: c.area_k[i] * 1000 };
+    for (const k of ["zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3"]) z[k] = c[k][i];
+    z.rm = Math.sqrt(z.area / Math.PI);
+    list.push(z);
+  }
+  zips = list.sort((a, b) => b.area - a.area);
+  zipBuckets = new Map();
+  for (const z of zips) {
+    const k = bucketKey(Math.floor(z.lat / SB), Math.floor(z.lon / SB));
+    let a = zipBuckets.get(k); if (!a) zipBuckets.set(k, a = []); a.push(z);
+  }
+}
+// Zillow publishes by ZIP code; the nearest ZIP center with data stands in for "the ZIP this point is in".
+function zipAt(lat, lon, maxMi = 5) {
+  let best = null, bd = maxMi;
+  const bi0 = Math.floor(lat / SB), bj0 = Math.floor(lon / SB);
+  for (let i = bi0 - 1; i <= bi0 + 1; i++)
+    for (let j = bj0 - 1; j <= bj0 + 1; j++)
+      for (const z of zipBuckets.get(bucketKey(i, j)) || []) {
+        const d = distMi(lat, lon, z.lat, z.lon);
+        if (d < bd) { bd = d; best = z; }
+      }
+  return best;
 }
 function nearestTract(lat, lon, maxMi = 8) {
   let best = null, bd = maxMi;
@@ -746,17 +794,18 @@ function tradeArea(lat, lon, R) {
 function areaDemo(lat, lon) {
   const ta = tradeArea(lat, lon, radius);
   const cty = countyAt(lat, lon), cd = cty?.d;
+  const z = zipAt(lat, lon);
   const pick = k => ta?.[k] ?? cd?.[k] ?? null;
-  return { ta, cty, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
-    popg: cd?.popg ?? null, dmig: cd?.dmig ?? null, zori1: cd?.zori1 ?? null };
+  return { ta, cty, z, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
+    popg: cd?.popg ?? null, dmig: cd?.dmig ?? null, zori1: z?.zori1 ?? cd?.zori1 ?? null, mfpipe: cd?.mfpipe ?? null };
 }
 
 async function loadMarket() {
   setMarketPill("busy", "Loading market data");
   try {
-    const [topo, cj] = await Promise.all([getJSON("data/counties-10m.json"), getJSON("data/counties.json")]);
-    setCounties(topo); setCountyData(cj); buildCountyLayer();
-    market.counties = true; afterMarket();
+    const [topo, cj, zj] = await Promise.all([getJSON("data/counties-10m.json"), getJSON("data/counties.json"), getJSON("data/zips.json")]);
+    setCounties(topo); setCountyData(cj); setZips(zj); buildCountyLayer();
+    market.counties = market.zips = true; afterMarket();
     setMarketPill("busy", "Loading neighborhoods");
     setTracts(await getJSON("data/tracts.json"));
     market.tracts = true; afterMarket();
@@ -773,21 +822,23 @@ function setMarketPill(cls, text) {
   p.innerHTML = `<span class="dot"></span>${escapeHtml(text)}`;
 }
 function afterMarket() {
-  updateCensusLayers(); renderLegend(); updateTop(); renderSources();
+  updateCensusLayers(); renderLegend(); updateTop(); renderSources(); renderDeals(); renderCompare();
   if (reportAt) renderReport();
 }
 
 // ---------- drawing ----------
 function colorFor(v, key) {
-  const c = METRICS[key]; if (!c || v == null || !isFinite(v)) return null;
+  if (!hasMetric(key) || v == null || !isFinite(v)) return null;
+  const c = METRICS[key];
   let i = 0; while (i < c.breaks.length && v >= c.breaks[i]) i++;
   return c.colors[i];
 }
-let countyLayer = null, censusMode = null;   // censusMode: "county" | "tract" | null
+let countyLayer = null, censusMode = null;   // censusMode: "county" | "tract" | "zip" | null
 function countyStyle(f) {
-  const d = censusMode === "county" ? cdata.get(f.properties.id) : null;
+  const d = censusMode === "county" || censusMode === "zip" ? cdata.get(f.properties.id) : null;
   const col = d ? colorFor(d[colorBy], colorBy) : null;
-  return { stroke: true, color: dark ? "#1a1a19" : "#ffffff", weight: 0.5, opacity: 0.8, fill: !!col, fillColor: col || "#000", fillOpacity: col ? shadeOpacity * 0.92 : 0 };
+  const fade = censusMode === "zip" ? 0.4 : 0.92;   // under ZIP circles the county fill is context, not the subject
+  return { stroke: true, color: dark ? "#1a1a19" : "#ffffff", weight: 0.5, opacity: 0.8, fill: !!col, fillColor: col || "#000", fillOpacity: col ? shadeOpacity * fade : 0 };
 }
 function buildCountyLayer() {
   if (countyLayer) map.removeLayer(countyLayer);
@@ -796,56 +847,62 @@ function buildCountyLayer() {
     pane: "census", interactive: false, renderer: L.canvas({ pane: "census", padding: 0.3 }), style: countyStyle,
   });
 }
-const TractLayer = L.GridLayer.extend({
+// Draws one circle per tract or ZIP, sized to its land area. options.mode picks which censusMode it serves.
+const CirclesLayer = L.GridLayer.extend({
   createTile(coords) {
     const tile = document.createElement("canvas");
     const size = this.getTileSize(), dpr = window.devicePixelRatio || 1;
     tile.width = size.x * dpr; tile.height = size.y * dpr; tile.style.width = size.x + "px"; tile.style.height = size.y + "px";
-    if (censusMode !== "tract" || !tracts.length) return tile;
+    const isZip = this.options.mode === "zip";
+    const buckets = isZip ? zipBuckets : tractBuckets;
+    if (censusMode !== this.options.mode || !buckets.size) return tile;
     const key = colorBy;
     const ctx = tile.getContext("2d"); ctx.scale(dpr, dpr);
     const z = coords.z, m = this._map, origin = coords.scaleBy(size);
     const nw = m.unproject(origin, z), se = m.unproject(origin.add(size), z);
     const padDeg = 1.2;
     ctx.globalAlpha = shadeOpacity * 0.92;
+    if (isZip) { ctx.lineWidth = 1; ctx.strokeStyle = dark ? "#1a1a19" : "#ffffff"; }
     for (let bi = Math.floor((se.lat - padDeg) / SB); bi <= Math.floor((nw.lat + padDeg) / SB); bi++)
       for (let bj = Math.floor((nw.lng - padDeg) / SB); bj <= Math.floor((se.lng + padDeg) / SB); bj++) {
-        const arr = tractBuckets.get(bucketKey(bi, bj));
+        const arr = buckets.get(bucketKey(bi, bj));
         if (!arr) continue;
         for (const t of arr) {
-          const col = colorFor(t.m[key], key);
+          const col = colorFor(isZip ? t[key] : t.m[key], key);
           if (!col) continue;
           const mpp = 156543.03392 * Math.cos(t.lat * Math.PI / 180) / Math.pow(2, z);
-          const r = Math.max(1.4, t.rm / mpp);
+          const r = Math.max(isZip ? 3 : 1.4, t.rm / mpp);
           const p = m.project([t.lat, t.lon], z).subtract(origin);
           if (p.x < -r || p.y < -r || p.x > size.x + r || p.y > size.y + r) continue;
           ctx.fillStyle = col;
           ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+          if (isZip) ctx.stroke();
         }
       }
     return tile;
   },
 });
-const tractLayer = new TractLayer({ pane: "census", updateWhenZooming: false, noWrap: true });
-tractLayer.addTo(map);
+const tractLayer = new CirclesLayer({ pane: "census", mode: "tract", updateWhenZooming: false, noWrap: true });
+const zipLayer = new CirclesLayer({ pane: "census", mode: "zip", updateWhenZooming: false, noWrap: true });
+tractLayer.addTo(map); zipLayer.addTo(map);
 
 function wantedCensusMode() {
-  const m = METRICS[colorBy];
-  if (!m) return null;
-  if (m.scope === "c") return market.counties ? "county" : null;
-  if (map.getZoom() < TRACT_MIN_ZOOM && m.county && market.counties) return "county";
+  if (!hasMetric(colorBy)) return null;
+  const m = METRICS[colorBy], zoomedIn = map.getZoom() >= TRACT_MIN_ZOOM;
+  if (m.scope === "c") return m.zip && zoomedIn && market.zips ? "zip" : market.counties ? "county" : null;
+  if (!zoomedIn && m.county && market.counties) return "county";
   return market.tracts ? "tract" : (m.county && market.counties ? "county" : null);
 }
 function updateCensusLayers() {
   censusMode = wantedCensusMode();
   if (countyLayer) {
-    if (censusMode === "county") { countyLayer.setStyle(countyStyle); if (!map.hasLayer(countyLayer)) countyLayer.addTo(map); }
+    if (censusMode === "county" || censusMode === "zip") { countyLayer.setStyle(countyStyle); if (!map.hasLayer(countyLayer)) countyLayer.addTo(map); }
     else if (map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
   }
-  tractLayer.redraw();
+  tractLayer.redraw(); zipLayer.redraw();
   signalLayer.redraw();
 }
-map.on("zoomend", () => { if (METRICS[colorBy]?.scope === "t" && wantedCensusMode() !== censusMode) { updateCensusLayers(); renderLegend(); } });
+map.on("zoomend", () => { if (hasMetric(colorBy) && wantedCensusMode() !== censusMode) { updateCensusLayers(); renderLegend(); } });
 
 function fillColorBy() {
   const sel = $("colorBy");
@@ -854,7 +911,7 @@ function fillColorBy() {
   sel.value = colorBy;
 }
 function setColorBy(v) {
-  colorBy = METRICS[v] ? v : "score";
+  colorBy = hasMetric(v) ? v : "score";
   $("colorBy").value = colorBy;
   updateCensusLayers(); renderLegend(); syncUrl();
 }
@@ -874,16 +931,20 @@ function renderLegend() {
     return `<div><span style="background:${col}"></span>${escapeHtml(lab)}</div>`;
   }).join("");
   const loading = censusMode == null ? (market.error ? "Market data didn't load. " : "Loading… ") : "";
-  const level = censusMode === "county" ? (m.scope === "t" ? "By county at this zoom; zoom in for neighborhoods." : "By county.") : censusMode === "tract" ? "By neighborhood (census tract)." : "";
-  const when = m.scope === "c" && /^z/.test(colorBy) && marketMeta ? ` Through ${monthName(colorBy.startsWith("zori") ? marketMeta.zori : marketMeta.zhvi)}.`
-    : m.scope === "t" && marketMeta ? ` ACS ${marketMeta.acs}.` : "";
+  const level = censusMode === "county" ? (m.scope === "t" || m.zip ? `By county at this zoom; zoom in for ${m.zip ? "ZIP codes" : "neighborhoods"}.` : "By county.")
+    : censusMode === "tract" ? "By neighborhood (census tract)."
+    : censusMode === "zip" ? "Circles are ZIP codes; the faint fill behind them is the county." : "";
+  const when = !marketMeta ? ""
+    : /^z(ori|hvi)/.test(colorBy) ? ` Through ${monthName(colorBy.startsWith("zori") ? marketMeta.zori : marketMeta.zhvi)}.`
+    : ["mfpipe", "mfp", "sfp"].includes(colorBy) ? ` Census building permits, ${colorBy === "mfpipe" ? `${marketMeta.permits - 2}–${marketMeta.permits}` : marketMeta.permits}.`
+    : m.scope === "t" ? ` ACS ${marketMeta.acs}.` : "";
   note.textContent = `${loading}${m.note}${when} ${level}`.trim();
 }
 $("colorBy").addEventListener("change", e => setColorBy(e.target.value));
 $("opacity").addEventListener("input", e => {
   shadeOpacity = +e.target.value / 100;
-  signalLayer.redraw(); tractLayer.redraw();
-  if (countyLayer && censusMode === "county") countyLayer.setStyle(countyStyle);
+  signalLayer.redraw(); tractLayer.redraw(); zipLayer.redraw();
+  if (countyLayer && (censusMode === "county" || censusMode === "zip")) countyLayer.setStyle(countyStyle);
 });
 $("legendMin").addEventListener("click", () => {
   const card = $("legendCard"), min = card.classList.toggle("min");
@@ -902,16 +963,19 @@ const CHIP = {
   popg: d => d.popg != null && `<b>${pct(d.popg)}</b> county pop`,
   dmig: d => d.dmig != null && `<b>${pct(d.dmig)}</b> migration`,
   zori1: d => d.zori1 != null && `<b>${pct(d.zori1)}</b> rent 1-yr`,
+  mfpipe: d => d.mfpipe != null && `<b>${d.mfpipe.toFixed(1)}%</b> pipeline`,
 };
+const SORT_ASC = new Set(["pti", "mfpipe"]);   // lower is better
 function passes(d) {
   if (filt.inc > 0 && !(d.inc >= filt.inc)) return false;
   if (filt.pti > 0 && !(d.pti != null && d.pti <= filt.pti)) return false;
   if (filt.renter > 0 && !(d.renter >= filt.renter)) return false;
   if (filt.popg > -999 && !(d.popg >= filt.popg)) return false;
   if (filt.zori1 > -999 && !(d.zori1 >= filt.zori1)) return false;
+  if (filt.pipe > 0 && !(d.mfpipe != null && d.mfpipe <= filt.pipe)) return false;
   return true;
 }
-const filtering = () => filt.inc > 0 || filt.pti > 0 || filt.renter > 0 || filt.popg > -999 || filt.zori1 > -999;
+const filtering = () => filt.inc > 0 || filt.pti > 0 || filt.renter > 0 || filt.popg > -999 || filt.zori1 > -999 || filt.pipe > 0;
 let topItems = [];
 function updateTop() {
   const ol = $("top"); ol.innerHTML = "";
@@ -938,7 +1002,7 @@ function updateTop() {
     picks.push({ c, d });
   }
   if (ranked) {
-    const asc = sortBy === "pti";
+    const asc = SORT_ASC.has(sortBy);
     picks.sort((a, b) => {
       const x = a.d[sortBy], y = b.d[sortBy];
       if (x == null) return 1; if (y == null) return -1;
@@ -976,6 +1040,11 @@ function updateTop() {
     topItems.push(c);
   }
 }
+$("topExport").addEventListener("click", () => {
+  if (!topItems.length) { toast("No areas to export yet.", true); return; }
+  const sites = topItems.map((c, i) => siteMetrics(c.lat, c.lon, null, { Rank: i + 1 }));
+  downloadCSV(`retail-signal-top-areas-${lens}-${today()}.csv`, sites);
+});
 let moveT;
 map.on("moveend", () => { syncUrl(); if ($("inView").checked) { clearTimeout(moveT); moveT = setTimeout(updateTop, 150); } });
 
@@ -1017,9 +1086,8 @@ const KPI = {
   dens: ["People per sq mi", ta => ta.dens ? fmt(Math.round(ta.dens)) : "–"],
   pop: ["People", ta => big(ta.pop)],
 };
-function renderReport() {
-  if (!reportAt) return;
-  const { lat, lon } = reportAt;
+// The score at an exact point: closest store of each signal, and how many tracked stores sit within the radius.
+function scoreAt(lat, lon) {
   const near = GROUPS.map(() => null);
   let within = 0;
   for (const s of nearbyStores(lat, lon, 1)) {
@@ -1033,6 +1101,14 @@ function renderReport() {
   near.forEach((n, g) => { if (n && n.d <= radius) score += frontier ? (roles[g] === "early" ? 1 : 0) : weights[g]; });
   const lateNear = GROUPS.map((g, i) => roles[i] === "late" && near[i] && near[i].d <= lateRadius ? `${g.name} (${near[i].d.toFixed(1)} mi)` : null).filter(Boolean);
   const qualifies = frontier && score >= minEarly && lateNear.length <= maxLate;
+  return { near, within, score, frontier, lateNear, qualifies };
+}
+const shareLabel = s => s == null ? "" : s < 1 ? "Top 1% of scored US areas" : s <= 50 ? `Top ${Math.ceil(s)}% of scored US areas` : "Below the median scored area";
+const chg = v => `<span class="${tone(v)}">${pct(v)}</span>`;
+function renderReport() {
+  if (!reportAt) return;
+  const { lat, lon } = reportAt;
+  const { near, within, score, frontier, lateNear, qualifies } = scoreAt(lat, lon);
 
   const rowsIn = [], rowsOut = [];
   GROUPS.forEach((g, gi) => {
@@ -1060,27 +1136,36 @@ function renderReport() {
   const ta = tradeArea(lat, lon, radius);
   const cty = countyAt(lat, lon), cd = cty?.d;
   const f = maxW ? score / maxW : 0;
-  const share0 = frontier ? null : topShare(score);
-  const shareTxt = share0 == null ? "" : share0 < 1 ? "Top 1% of scored US areas" : share0 <= 50 ? `Top ${Math.ceil(share0)}% of scored US areas` : "Below the median scored area";
+  const shareTxt = shareLabel(frontier ? null : topShare(score));
   const title = frontier ? `${score} of ${maxW} early movers within ${radius} mi` : `${score} of ${maxW} signal points within ${radius} mi`;
   const place = reportAt.label || placeLabel(lat, lon);
   const sub = [cd?.name, cd?.metro ? cd.metro + " metro" : null].filter(Boolean).map(escapeHtml).join(" · ") || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
   const kpiKeys = LENS_KPIS[lens] || LENS_KPIS.retail;
   const kpis = ta ? `<div class="kpis">${kpiKeys.map((k, i) => `<div class="kpi${i < 3 ? " lead" : ""}"><b>${KPI[k][1](ta)}</b><span>${KPI[k][0]}</span></div>`).join("")}</div>
-      <p class="rp-fine">${fmt(ta.n)} census tracts centered within ${radius} mi. Household-weighted averages of tract medians, ACS ${marketMeta?.acs || ""}.</p>`
+      <p class="rp-fine">${fmt(ta.n)} census tracts centered within ${radius} mi. Household-weighted averages of tract medians, ACS ${escapeHtml(marketMeta?.acs || "")}.</p>`
     : `<p class="rp-fine">${market.error ? "Neighborhood data didn't load." : market.tracts ? "No census tracts centered within this radius." : "Loading neighborhood data…"}</p>`;
+
+  const dl = rows => `<dl class="mkt">${rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`;
+  const zp = zipAt(lat, lon);
+  const zipRows = [];
+  if (zp?.zori) zipRows.push([`Typical rent (${monthName(marketMeta?.zori)})`, dollars(zp.zori), `${chg(zp.zori1)} 1 yr · ${chg(zp.zori3)} 3 yr`]);
+  if (zp?.zhvi) zipRows.push([`Typical home value (${monthName(marketMeta?.zhvi)})`, money(zp.zhvi), `${chg(zp.zhvi1)} 1 yr · ${chg(zp.zhvi5)} 5 yr`]);
+  const zipBox = zipRows.length ? `<h3 class="rp-h">Submarket <span>ZIP ${escapeHtml(zp.zip)} · Zillow</span></h3>${dl(zipRows)}` : "";
 
   const mktRows = [];
   if (cd) {
-    if (cd.pep) mktRows.push(["Population", big(cd.pep), `<span class="${tone(cd.popg)}">${pct(cd.popg)}</span> since 2020 · <span class="${tone(cd.popg1)}">${pct(cd.popg1)}</span> last year`]);
-    if (cd.dmig != null) mktRows.push(["Net domestic migration, 2021–25", `<span class="${tone(cd.dmig)}">${pct(cd.dmig)}</span>`, "Moves in from other US counties minus moves out, as a share of 2020 population"]);
-    if (cd.zori) mktRows.push([`Typical rent (Zillow, ${monthName(marketMeta?.zori)})`, dollars(cd.zori), `<span class="${tone(cd.zori1)}">${pct(cd.zori1)}</span> 1 yr · <span class="${tone(cd.zori3)}">${pct(cd.zori3)}</span> 3 yr`]);
-    if (cd.zhvi) mktRows.push([`Typical home value (Zillow, ${monthName(marketMeta?.zhvi)})`, money(cd.zhvi), `<span class="${tone(cd.zhvi1)}">${pct(cd.zhvi1)}</span> 1 yr · <span class="${tone(cd.zhvi5)}">${pct(cd.zhvi5)}</span> 5 yr`]);
+    if (cd.pep) mktRows.push(["Population", big(cd.pep), `${chg(cd.popg)} since 2020 · ${chg(cd.popg1)} last year`]);
+    if (cd.dmig != null) mktRows.push(["Net domestic migration, 2021–25", chg(cd.dmig), "Moves in from other US counties minus moves out, as a share of 2020 population"]);
+    if (cd.p5 != null) mktRows.push([`New supply, permits ${marketMeta?.permits ?? ""}`, `${fmt(cd.p5)} apts`,
+      `${fmt(cd.p1)} single-family homes · ${cd.mfpipe != null ? `${cd.mfpipe.toFixed(1)}% of apartment stock permitted over 3 yrs` : "apartment pipeline n/a"}`]);
+    if (cd.zori) mktRows.push([`Typical rent (Zillow, ${monthName(marketMeta?.zori)})`, dollars(cd.zori), `${chg(cd.zori1)} 1 yr · ${chg(cd.zori3)} 3 yr`]);
+    if (cd.zhvi) mktRows.push([`Typical home value (Zillow, ${monthName(marketMeta?.zhvi)})`, money(cd.zhvi), `${chg(cd.zhvi1)} 1 yr · ${chg(cd.zhvi5)} 5 yr`]);
     if (cd.inc) mktRows.push(["County medians (ACS)", "", `Income ${money(cd.inc)} · home ${money(cd.hv)} · rent ${dollars(cd.rent)} · ${share(cd.renter)} renters`]);
   }
-  const mkt = mktRows.length ? `<dl class="mkt">${mktRows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`
+  const mkt = mktRows.length ? dl(mktRows)
     : `<p class="rp-fine">${market.counties ? "No county figures for this spot." : market.error ? "County data didn't load." : "Loading county data…"}</p>`;
+  const pinned = compareIndex(lat, lon) >= 0;
 
   const fline = frontier ? `<div class="verdict${qualifies ? " yes" : ""}"><b>${qualifies ? "Frontier area" : "Not a frontier area"}</b>${lateNear.length ? `Late anchors within ${lateRadius} mi: ${escapeHtml(lateNear.join(", "))}.` : `No late anchors within ${lateRadius} mi.`} Needs ${minEarly}+ early movers and at most ${maxLate} late ${maxLate === 1 ? "anchor" : "anchors"}.</div>` : "";
 
@@ -1098,12 +1183,14 @@ function renderReport() {
       ${fline}
       <h3 class="rp-h">Trade area <span>within ${radius} mi${ta ? ` · ${big(ta.pop)} people` : ""}</span></h3>
       ${kpis}
-      <h3 class="rp-h">County market${cd ? ` <span>${escapeHtml(cd.name.split(",")[0])}</span>` : ""}</h3>
+      ${zipBox}
+      <h3 class="rp-h">County market${cd?.name ? ` <span>${escapeHtml(cd.name.split(",")[0])}</span>` : ""}</h3>
       ${mkt}
       ${rowsIn.length ? `<h3 class="rp-h">Within ${radius} mi <span>${rowsIn.length} ${frontier ? "chains" : "signals"}</span></h3><ul class="chains">${rowsIn.map(r => r[1]).join("")}</ul>` : ""}
       ${upRows ? `<h3 class="rp-h">Announced nearby <span>approximate</span></h3><ul class="chains">${upRows}</ul>` : ""}
       ${rowsOut.length ? `<h3 class="rp-h">Missing nearby <span>closest location</span></h3><ul class="chains">${rowsOut.map(r => r[1]).join("")}</ul>` : ""}
       <div class="rp-actions">
+        <button class="btn${pinned ? " on" : ""}" data-act="cmp" type="button" aria-pressed="${pinned}">${pinned ? "In compare ✓" : "Add to compare"}</button>
         <a class="btn" href="${gmapsSpot(lat, lon)}" target="_blank" rel="noopener">${ICON_EXT}Google Maps</a>
         <button class="btn" data-act="copy" type="button">Copy link</button>
         <button class="btn" data-act="print" type="button">Print</button>
@@ -1115,12 +1202,332 @@ $("report").addEventListener("click", e => {
   if (act === "close") closeReport();
   else if (act === "copy") copyLink();
   else if (act === "print") window.print();
+  else if (act === "cmp" && reportAt) toggleCompare(reportAt.lat, reportAt.lon, reportAt.label || placeLabel(reportAt.lat, reportAt.lon));
 });
 map.on("click", e => openReport(e.latlng.lat, e.latlng.lng));
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && cmpOpen) { closeCompare(); return; }
   if (e.key === "Escape" && reportAt) closeReport();
   if (e.key === "/" && !/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName)) { e.preventDefault(); $("place").focus(); }
 });
+
+// ================= Site metrics and CSV export =================
+const lensName = () => LENSES.find(l => l.id === lens).name;
+const today = () => new Date().toISOString().slice(0, 10);
+const rnd = (v, d = 0) => v == null || !isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d;
+function siteMetrics(lat, lon, label, extra = {}) {
+  const sc = scoreAt(lat, lon);
+  return { label: label || placeLabel(lat, lon), extra, lat, lon, sc, top: sc.frontier ? null : topShare(sc.score),
+    ta: tradeArea(lat, lon, radius) || {}, cd: countyAt(lat, lon)?.d || {}, z: zipAt(lat, lon) || {} };
+}
+// One list drives both the CSV columns and the compare table. better: 1 = higher is better, -1 = lower is better.
+const pctPlain = v => v.toFixed(1) + "%";
+const F = (sec, label, get, show, better = 0, cmp = true) => ({ sec, label, get, show, better, cmp });
+const SITE_FIELDS = [
+  F("Location", "County", s => s.cd.name, null, 0, false),
+  F("Location", "Metro", s => s.cd.metro, null, 0, false),
+  F("Location", "ZIP", s => s.z.zip, null, 0, false),
+  F("Location", "Latitude", s => rnd(s.lat, 5), null, 0, false),
+  F("Location", "Longitude", s => rnd(s.lon, 5), null, 0, false),
+  F("Score", "Signal score", s => s.sc.score, v => `${v} of ${maxW}`, 1),
+  F("Score", "Max points", () => maxW, null, 0, false),
+  F("Score", "Top % of scored US areas", s => rnd(s.top, 1), v => v < 1 ? "Top 1%" : `Top ${Math.ceil(v)}%`, -1),
+  F("Score", "Tracked stores nearby", s => s.sc.within, fmt, 1),
+  F("Score", "Signals present", s => GROUPS.filter((g, i) => s.sc.near[i] && s.sc.near[i].d <= radius && groupVisible(i)).map(g => g.name).join("; "), null, 0, false),
+  F("Trade area", "People", s => rnd(s.ta.pop), big),
+  F("Trade area", "Household income ($)", s => rnd(s.ta.inc), money, 1),
+  F("Trade area", "Home value ($)", s => rnd(s.ta.hv), money),
+  F("Trade area", "Rent per month ($)", s => rnd(s.ta.rent), dollars),
+  F("Trade area", "Home price to income (x)", s => rnd(s.ta.pti, 1), v => v.toFixed(1) + "×", -1),
+  F("Trade area", "Gross rent yield (%)", s => rnd(s.ta.yld, 1), pctPlain, 1),
+  F("Trade area", "Renter households (%)", s => rnd(s.ta.renter, 1), pctPlain),
+  F("Trade area", "Rental vacancy (%)", s => rnd(s.ta.vac, 1), pctPlain, -1),
+  F("Trade area", "Homes in 5+ unit buildings (%)", s => rnd(s.ta.mf5, 1), pctPlain),
+  F("Trade area", "Median year built", s => rnd(s.ta.yb), String),
+  F("Trade area", "Bachelor's or higher (%)", s => rnd(s.ta.bach, 1), pctPlain, 1),
+  F("Trade area", "People per sq mi", s => rnd(s.ta.dens), fmt),
+  F("ZIP (Zillow)", "ZIP typical rent ($)", s => s.z.zori, dollars),
+  F("ZIP (Zillow)", "ZIP rent change 1 yr (%)", s => s.z.zori1, pct, 1),
+  F("ZIP (Zillow)", "ZIP rent change 3 yr (%)", s => s.z.zori3, pct, 1),
+  F("ZIP (Zillow)", "ZIP typical home value ($)", s => s.z.zhvi, money),
+  F("ZIP (Zillow)", "ZIP home value change 1 yr (%)", s => s.z.zhvi1, pct, 1),
+  F("ZIP (Zillow)", "ZIP home value change 5 yr (%)", s => s.z.zhvi5, pct, 1),
+  F("County", "County population", s => s.cd.pep, big),
+  F("County", "County growth since 2020 (%)", s => s.cd.popg, pct, 1),
+  F("County", "County growth last year (%)", s => s.cd.popg1, pct, 1),
+  F("County", "Net domestic migration 2021-25 (%)", s => s.cd.dmig, pct, 1),
+  F("County", "Apartment units permitted, latest year", s => s.cd.p5, fmt),
+  F("County", "Single-family homes permitted, latest year", s => s.cd.p1, fmt),
+  F("County", "Apartment pipeline, 3 yrs (% of stock)", s => rnd(s.cd.mfpipe, 1), pctPlain, -1),
+  F("County", "County Zillow rent ($)", s => s.cd.zori, dollars, 0, false),
+  F("County", "County Zillow rent change 1 yr (%)", s => s.cd.zori1, pct, 1, false),
+  F("County", "County Zillow home value ($)", s => s.cd.zhvi, money, 0, false),
+  F("County", "County Zillow home value change 1 yr (%)", s => s.cd.zhvi1, pct, 1, false),
+];
+// A text cell starting with = + - @ would run as a formula in Excel or Sheets; prefixing ' keeps it text.
+function csvCell(v) {
+  if (v == null) return "";
+  if (typeof v === "number") return isFinite(v) ? String(v) : "";
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadText(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+// items: siteMetrics results, or {label, extra, unscored: "why"} for rows that couldn't be placed.
+function downloadCSV(name, items) {
+  const extraKeys = [...new Set(items.flatMap(s => Object.keys(s.extra || {})))];
+  const header = ["Site", ...extraKeys, "Lens", "Radius (mi)", ...SITE_FIELDS.map(f => f.label)];
+  const rows = items.map(s => [s.label, ...extraKeys.map(k => s.extra?.[k]), lensName(), radius,
+    ...SITE_FIELDS.map(f => s.sc ? f.get(s) : null)]);
+  downloadText(name, "﻿" + [header, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n"), "text/csv;charset=utf-8");
+  toast(`Exported ${items.length} ${items.length === 1 ? "site" : "sites"}.`);
+}
+
+// ================= Compare =================
+let cmpOpen = false;
+const cmpLayer = L.layerGroup().addTo(map);
+const compareIndex = (lat, lon) => compare.findIndex(c => Math.abs(c.lat - lat) < 1e-4 && Math.abs(c.lon - lon) < 1e-4);
+function toggleCompare(lat, lon, label) {
+  const i = compareIndex(lat, lon);
+  if (i >= 0) compare.splice(i, 1);
+  else {
+    if (compare.length >= MAX_COMPARE) { toast(`Compare holds ${MAX_COMPARE} sites. Remove one first.`, true); return; }
+    compare.push({ lat, lon, label: str(label, 80) });
+    toast(compare.length === 1 ? "Added to compare. Pin up to 3 more, then click Compare at the top." : `${compare.length} sites in compare.`);
+  }
+  afterCompareChange();
+}
+function afterCompareChange() {
+  $("cmpBtn").hidden = !compare.length;
+  $("cmpCount").textContent = compare.length || "";
+  cmpLayer.clearLayers();
+  compare.forEach((c, i) => L.marker([c.lat, c.lon], {
+    icon: L.divIcon({ className: "pin cmp-pin", html: `<span>${i + 1}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+    title: c.label, keyboard: false,
+  }).on("click", () => openReport(c.lat, c.lon, c.label)).addTo(cmpLayer));
+  if (reportAt) renderReport();
+  renderCompare(); syncUrl();
+}
+function openCompare() { if (!compare.length) return; cmpOpen = true; $("cmp").hidden = false; document.body.classList.add("cmp-open"); renderCompare(); }
+function closeCompare() { cmpOpen = false; $("cmp").hidden = true; document.body.classList.remove("cmp-open"); }
+function renderCompare() {
+  if (!cmpOpen) return;
+  if (!compare.length) { closeCompare(); return; }
+  const sites = compare.map(c => siteMetrics(c.lat, c.lon, c.label));
+  const head = sites.map((s, i) => `<th scope="col"><div class="cmp-site"><span class="pin-n">${i + 1}</span>
+      <div><b>${escapeHtml(s.label)}</b><small>${escapeHtml([s.cd.name, s.z.zip ? "ZIP " + s.z.zip : ""].filter(Boolean).join(" · "))}</small></div>
+      <button class="icon-btn" type="button" data-rm="${i}" aria-label="Remove ${escapeHtml(s.label)} from compare">${ICON_X}</button></div>
+      <button class="linkish" type="button" data-open="${i}">Open report</button></th>`).join("");
+  let sec = "", body = "";
+  for (const f of SITE_FIELDS) {
+    if (!f.cmp) continue;
+    if (f.sec !== sec) { sec = f.sec; body += `<tr class="sec"><th colspan="${sites.length + 1}">${escapeHtml(sec === "Trade area" ? `Trade area · within ${radius} mi` : sec)}</th></tr>`; }
+    const vals = sites.map(s => f.get(s));
+    const shown = vals.map(v => v == null || v === "" ? "–" : f.show ? f.show(v) : String(v));
+    // Highlight by what's displayed, so two sites that both read "Top 1%" are treated as a tie.
+    const nums = vals.filter(v => typeof v === "number" && isFinite(v));
+    const best = f.better && nums.length > 1 ? shown[vals.indexOf(f.better > 0 ? Math.max(...nums) : Math.min(...nums))] : null;
+    const tie = best != null && shown.every(t => t === best || t === "–");
+    const label = f.label.replace(/^(ZIP|County) /, "").replace(/ \((%|\$|x)\)$/, "");
+    body += `<tr><th scope="row">${escapeHtml(label.charAt(0).toUpperCase() + label.slice(1))}</th>${shown.map(t =>
+      `<td${best != null && !tie && t === best ? ' class="best"' : ""}>${escapeHtml(t)}</td>`).join("")}</tr>`;
+  }
+  $("cmp").innerHTML = `
+    <div class="cmp-head">
+      <div><p class="eyebrow" style="margin-bottom:4px">Compare · ${escapeHtml(lensName())} lens · ${radius}-mile trade areas</p><h2>${sites.length} ${sites.length === 1 ? "site" : "sites"}</h2></div>
+      <div class="cmp-actions">
+        <button class="btn" type="button" data-act="export">Export CSV</button>
+        <button class="btn" type="button" data-act="print">Print</button>
+        <button class="btn" type="button" data-act="clear">Clear</button>
+        <button class="icon-btn" type="button" data-act="close" aria-label="Close compare">${ICON_X}</button>
+      </div>
+    </div>
+    <div class="cmp-scroll"><table class="cmp-table"><thead><tr><th scope="col"><span class="sr">Measure</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <p class="rp-fine cmp-foot">Bold marks the best value in rows where higher or lower is clearly better. Scores and trade areas follow the current lens and radius.</p>`;
+}
+$("cmp").addEventListener("click", e => {
+  const t = e.target.closest("[data-act],[data-rm],[data-open]"); if (!t) return;
+  if (t.dataset.rm != null) { compare.splice(+t.dataset.rm, 1); afterCompareChange(); return; }
+  if (t.dataset.open != null) { const c = compare[+t.dataset.open]; closeCompare(); map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 12), { duration: 0.8 }); openReport(c.lat, c.lon, c.label); return; }
+  const act = t.dataset.act;
+  if (act === "close") closeCompare();
+  else if (act === "print") window.print();
+  else if (act === "clear") { compare = []; afterCompareChange(); }
+  else if (act === "export") downloadCSV(`retail-signal-compare-${today()}.csv`, compare.map(c => siteMetrics(c.lat, c.lon, c.label)));
+});
+$("cmpBtn").addEventListener("click", () => cmpOpen ? closeCompare() : openCompare());
+
+// ================= Deal list =================
+// Uploaded properties are kept in this browser only (localStorage), along with a cache of addresses already looked up.
+const DEAL_KEY = "rs.deals.v1", GEO_KEY = "rs.geocode.v1";
+const MAX_DEAL_ROWS = 500, MAX_GEOCODE = 100;
+const local = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { /* private mode */ } },
+};
+const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const DEAL_STATUS = { ok: "", pending: "Waiting to be located", skipped: "Not located yet (over the 100-address limit)", notfound: "Couldn't find this address", missing: "No address or coordinates", error: "Lookup failed; try again" };
+const dealLayer = L.layerGroup().addTo(map);
+let dealRun = 0;   // bumps to cancel a lookup in progress
+
+function readDealCSV(text) {
+  const rows = parseCSV(text.replace(/^﻿/, ""));
+  if (rows.length < 2) throw new Error("The file looks empty.");
+  const head = rows[0].map(h => str(h, 60).trim());
+  const low = head.map(h => h.toLowerCase());
+  const col = names => low.findIndex(h => names.includes(h));
+  const ni = col(["name", "property", "property name", "site", "site name", "deal", "deal name", "asset", "project"]);
+  const ai = col(["address", "street", "street address", "address 1", "address1", "property address", "full address", "location"]);
+  const ci = col(["city", "town"]), si = col(["state", "st"]), zi = col(["zip", "zipcode", "zip code", "postal code", "postal", "postcode"]);
+  const la = col(["lat", "latitude", "y"]), lo = col(["lon", "lng", "long", "longitude", "x"]);
+  if (ai < 0 && ci < 0 && zi < 0 && (la < 0 || lo < 0)) throw new Error("Add an address column (or city and state, or ZIP), or latitude and longitude columns.");
+  const keep = head.map(h => h && !BAD_KEYS.has(h) ? h : null);
+  const list = [];
+  for (const r of rows.slice(1, MAX_DEAL_ROWS + 1)) {
+    const row = {};
+    keep.forEach((h, i) => { if (h) row[h] = str(r[i], 300); });
+    const lat = la >= 0 ? parseFloat(r[la]) : NaN, lon = lo >= 0 ? parseFloat(r[lo]) : NaN;
+    const part = i => i >= 0 ? str(r[i], 120).trim() : "";
+    const query = [part(ai), part(ci), part(si), part(zi)].filter(Boolean).join(", ");
+    const placed = inUS(lat, lon);
+    list.push({ name: str(part(ni) || part(ai) || query || `Row ${list.length + 1}`, 120), query, lat: placed ? lat : null, lon: placed ? lon : null,
+      row, status: placed ? "ok" : query ? "pending" : "missing" });
+  }
+  return { head: keep.filter(Boolean), list, more: rows.length - 1 - MAX_DEAL_ROWS };
+}
+function saveDeals() {
+  if (!deals.length) { local.del(DEAL_KEY); return; }
+  local.set(DEAL_KEY, { head: dealHeaders, deals: deals.map(({ name, query, lat, lon, row, status }) => ({ name, query, lat, lon, row, status })) });
+}
+function restoreDeals() {
+  const saved = local.get(DEAL_KEY);
+  if (!saved || !Array.isArray(saved.deals)) return;
+  dealHeaders = Array.isArray(saved.head) ? saved.head.map(h => str(h, 60)).filter(h => !BAD_KEYS.has(h)) : [];
+  deals = saved.deals.slice(0, MAX_DEAL_ROWS).map(d => {
+    const placed = inUS(+d.lat, +d.lon);
+    const row = {};
+    for (const h of dealHeaders) row[h] = str(d.row?.[h], 300);
+    const status = placed ? "ok" : Object.hasOwn(DEAL_STATUS, d.status) && d.status !== "ok" ? (d.status === "pending" ? "skipped" : d.status) : "missing";
+    return { name: str(d.name, 120), query: str(d.query, 300), lat: placed ? +d.lat : null, lon: placed ? +d.lon : null, row, status };
+  });
+}
+async function locateDeals() {
+  const run = ++dealRun;
+  const todo = deals.filter(d => d.status === "pending" || d.status === "skipped" || d.status === "error");
+  todo.forEach(d => { d.status = "pending"; });
+  const cache = local.get(GEO_KEY) || {};
+  let n = 0, asked = 0;
+  $("dealProg").classList.add("on");
+  for (const d of todo) {
+    if (run !== dealRun) return;
+    n++;
+    $("dealProg").firstElementChild.style.width = `${Math.round(n / todo.length * 100)}%`;
+    const key = d.query.toLowerCase();
+    const hit = Object.hasOwn(cache, key) ? cache[key] : null;
+    if (hit) {
+      if (inUS(hit.lat, hit.lon)) Object.assign(d, { lat: hit.lat, lon: hit.lon, status: "ok" }); else d.status = "notfound";
+      continue;
+    }
+    if (asked >= MAX_GEOCODE) { d.status = "skipped"; continue; }
+    setDealStatus(`Locating ${n} of ${todo.length}: ${d.name}`);
+    try {
+      const r = await geocode(d.query);
+      asked++;
+      if (r && inUS(r.lat, r.lon)) { Object.assign(d, { lat: r.lat, lon: r.lon, status: "ok" }); cache[key] = { lat: r.lat, lon: r.lon }; }
+      else { d.status = "notfound"; cache[key] = { lat: null, lon: null }; }
+    } catch (e) { d.status = "error"; }
+    if (run !== dealRun) return;
+    if (asked % 5 === 0) { renderDeals(); saveDeals(); }
+    await sleep(1100);   // OpenStreetMap's geocoder allows about one request per second
+  }
+  const keys = Object.keys(cache);
+  if (keys.length > 1000) keys.slice(0, keys.length - 1000).forEach(k => delete cache[k]);
+  local.set(GEO_KEY, cache);
+  $("dealProg").classList.remove("on");
+  saveDeals(); renderDeals();
+  const ok = deals.filter(d => d.status === "ok").length, left = deals.filter(d => d.status === "skipped").length;
+  setDealStatus(`${ok} of ${deals.length} sites placed and scored.${left ? ` ${left} still need locating; click Locate the rest.` : ""}`);
+}
+function setDealStatus(msg, err) { const s = $("dealStatus"); s.textContent = msg; s.classList.toggle("err", !!err); }
+let dealRanked = [];
+function renderDeals() {
+  $("dealCountBadge").textContent = deals.length || "";
+  $("dealResults").hidden = !deals.length;
+  dealLayer.clearLayers();
+  if (!deals.length) { dealRanked = []; return; }
+  const placed = d => d.status === "ok" && stores.length;
+  dealRanked = deals.map(d => ({ d, sc: placed(d) ? scoreAt(d.lat, d.lon) : null }))
+    .sort((a, b) => (b.sc?.score ?? -1) - (a.sc?.score ?? -1));
+  const ok = dealRanked.filter(x => x.sc).length;
+  $("dealHead").textContent = `${ok} of ${deals.length} ${deals.length === 1 ? "site" : "sites"} scored`;
+  $("dealLens").textContent = `Ranked by ${lensName()}`;
+  $("dealMore").hidden = !deals.some(d => d.status === "skipped" || d.status === "error");
+  const ol = $("dealList"); ol.innerHTML = "";
+  const chipKeys = LENS_CHIPS[lens];
+  dealRanked.forEach(({ d, sc }, i) => {
+    const li = document.createElement("li");
+    li.tabIndex = 0;
+    if (sc) {
+      const f = maxW ? sc.score / maxW : 0, demo = market.counties ? areaDemo(d.lat, d.lon) : null;
+      const chips = demo ? chipKeys.map(k => { const h = CHIP[k](demo); return h ? `<span class="chip">${h}</span>` : ""; }).join("") : "";
+      li.innerHTML = `<span class="tname"></span><span class="tscore">${sc.score}<span style="color:var(--muted);font-weight:500">/${maxW}</span></span>
+        <span class="tbar"><i style="width:${Math.round(f * 100)}%;background:${stepColor(f)}"></i></span>${chips ? `<span class="chips">${chips}</span>` : ""}`;
+      const go = () => { map.flyTo([d.lat, d.lon], Math.max(map.getZoom(), 12), { duration: 0.8 }); openReport(d.lat, d.lon, d.name); };
+      li.addEventListener("click", go);
+      li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+      L.marker([d.lat, d.lon], { icon: L.divIcon({ className: "pin deal-pin", html: `<span>${i + 1}</span>`, iconSize: [22, 22], iconAnchor: [11, 11] }), title: d.name, keyboard: false })
+        .on("click", go).addTo(dealLayer);
+    } else {
+      li.classList.add("na");
+      li.innerHTML = `<span class="tname"></span><span class="tscore">–</span><span class="chips"><span class="chip"></span></span>`;
+      li.querySelector(".chip").textContent = DEAL_STATUS[d.status] || DEAL_STATUS.missing;
+    }
+    li.querySelector(".tname").textContent = d.name;
+    ol.appendChild(li);
+  });
+}
+$("dealUpload").addEventListener("click", () => $("dealFile").click());
+$("dealFile").addEventListener("change", async e => {
+  const file = e.target.files[0]; e.target.value = "";
+  if (!file) return;
+  if (file.size > 5e6) { setDealStatus("That file is over 5 MB. Split it into smaller lists.", true); return; }
+  try {
+    const { head, list, more } = readDealCSV(await file.text());
+    dealRun++;   // stop any lookup still running for the previous list
+    dealHeaders = head; deals = list;
+    saveDeals(); renderDeals(); showTab("deals");
+    const need = deals.filter(d => d.status === "pending").length;
+    setDealStatus(`${deals.length} rows read${more > 0 ? ` (the first ${MAX_DEAL_ROWS}; ${more} more were left out)` : ""}.${need ? ` Locating ${Math.min(need, MAX_GEOCODE)} addresses, about ${Math.ceil(Math.min(need, MAX_GEOCODE) * 1.1 / 60)} min…` : ""}`);
+    if (need) locateDeals();
+  } catch (err) { setDealStatus(`Couldn't read ${file.name}: ${err.message}`, true); }
+});
+$("dealMore").addEventListener("click", () => { setDealStatus("Locating the rest…"); locateDeals(); });
+$("dealClear").addEventListener("click", () => {
+  dealRun++; deals = []; dealHeaders = []; saveDeals(); renderDeals();
+  $("dealProg").classList.remove("on"); setDealStatus("Cleared. Nothing from that list is stored in this browser now.");
+});
+$("dealExport").addEventListener("click", () => {
+  if (!dealRanked.length) return;
+  downloadCSV(`retail-signal-deals-${lens}-${today()}.csv`, dealRanked.map(({ d, sc }, i) => sc
+    ? siteMetrics(d.lat, d.lon, d.name, { Rank: i + 1, ...d.row })
+    : { label: d.name, extra: { Rank: "", ...d.row, "Lookup status": DEAL_STATUS[d.status] } }));
+});
+$("dealCompare").addEventListener("click", () => {
+  const top = dealRanked.filter(x => x.sc).slice(0, MAX_COMPARE);
+  if (!top.length) { toast("No scored sites to compare yet.", true); return; }
+  compare = top.map(({ d }) => ({ lat: d.lat, lon: d.lon, label: d.name }));
+  afterCompareChange(); openCompare();
+});
+$("dealTemplate").addEventListener("click", () => downloadText("retail-signal-deal-template.csv",
+  "name,address,city,state,zip,latitude,longitude,units,price\r\nLegacy West Apartments,6000 Legacy Dr,Plano,TX,75024,,,240,52000000\r\nEast Austin infill lot,,Austin,TX,78702,30.2600,-97.7200,,\r\n",
+  "text/csv;charset=utf-8"));
 
 // ================= Lens =================
 function renderLens() {
@@ -1158,9 +1565,9 @@ function applyLens(id) {
 }
 function setFilterInputs() {
   $("fInc").value = filt.inc; $("fPti").value = filt.pti; $("fRenter").value = filt.renter; $("fPop").value = filt.popg; $("fRent").value = filt.zori1;
-  $("sortBy").value = sortBy;
+  $("fPipe").value = filt.pipe; $("sortBy").value = sortBy;
 }
-[["fInc", "inc"], ["fPti", "pti"], ["fRenter", "renter"], ["fPop", "popg"], ["fRent", "zori1"]].forEach(([id, k]) =>
+[["fInc", "inc"], ["fPti", "pti"], ["fRenter", "renter"], ["fPop", "popg"], ["fRent", "zori1"], ["fPipe", "pipe"]].forEach(([id, k]) =>
   $(id).addEventListener("change", e => { filt[k] = +e.target.value; updateTop(); renderLensDesc(); syncUrl(); }));
 $("sortBy").addEventListener("change", e => { sortBy = e.target.value; updateTop(); renderLensDesc(); syncUrl(); });
 $("inView").addEventListener("change", updateTop);
@@ -1279,7 +1686,11 @@ async function goPlace(e) {
   e?.preventDefault();
   const q = $("place").value.trim(); if (!q) return;
   const ll = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
-  if (ll) { const lat = +ll[1], lon = +ll[2]; map.flyTo([lat, lon], 12, { duration: 0.8 }); openReport(lat, lon); return; }
+  if (ll) {
+    const lat = +ll[1], lon = +ll[2];
+    if (!inUS(lat, lon)) { toast("Those coordinates aren't in the US. Use latitude, longitude, like 33.08, -96.83.", true); return; }
+    map.flyTo([lat, lon], 12, { duration: 0.8 }); openReport(lat, lon); return;
+  }
   try {
     const r = await geocode(q);
     if (!r) { toast(`No match for “${q}”. Try adding the state.`, true); return; }
@@ -1311,11 +1722,13 @@ function writeUrl() {
     if (roles.some((r, i) => r !== (DEFAULT_ROLE[GROUPS[i].name] || "none"))) p.set("roles", roles.map(r => r[0]).join(""));
     if (minEarly !== 4 || maxLate !== 0 || lateRadius !== 10) p.set("fr", `${minEarly}.${maxLate}.${lateRadius}`);
   }
-  if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1].join("_"));
+  if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe].join("_"));
   if (sortBy !== "score") p.set("sort", sortBy);
   if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}`);
+  if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
 }
+const SORTS = ["score", "popg", "dmig", "zori1", "inc", "pti", "yld", "mfpipe"];
 function readUrl() {
   const p = new URLSearchParams(location.hash.slice(1));
   applyLens(LENSES.some(l => l.id === p.get("lens")) ? p.get("lens") : "mf");
@@ -1329,16 +1742,26 @@ function readUrl() {
   const fr = p.get("fr");
   if (fr) { const [a, b, c] = fr.split(".").map(Number); minEarly = num(a, 1, 30, minEarly); maxLate = num(b, 0, 30, maxLate); lateRadius = num(c, 3, 25, lateRadius); }
   const f = p.get("f");
-  if (f) { const v = f.split("_").map(Number); if (v.length === 5 && v.every(isFinite)) filt = { inc: v[0], pti: v[1], renter: v[2], popg: v[3], zori1: v[4] }; }
-  if (["score", "popg", "dmig", "zori1", "inc", "pti", "yld"].includes(p.get("sort"))) sortBy = p.get("sort");
+  if (f) {
+    const v = f.split("_").map(Number);
+    if ((v.length === 5 || v.length === 6) && v.every(isFinite)) filt = { inc: v[0], pti: v[1], renter: v[2], popg: v[3], zori1: v[4], pipe: v[5] || 0 };
+  }
+  if (SORTS.includes(p.get("sort"))) sortBy = p.get("sort");
   setFilterInputs();
-  if (METRICS[p.get("color")]) colorBy = p.get("color");
+  if (hasMetric(p.get("color"))) colorBy = p.get("color");
+  // Coordinates are range-checked: a link with an absurd value would otherwise freeze the grid loops.
   const mv = (p.get("map") || "").split("/").map(Number);
-  if (mv.length === 3 && mv.every(isFinite)) map.setView([mv[1], mv[2]], mv[0], { animate: false });
+  if (mv.length === 3 && mv.every(isFinite) && Math.abs(mv[1]) <= 85 && Math.abs(mv[2]) <= 180) map.setView([mv[1], mv[2]], Math.min(19, Math.max(2, mv[0])), { animate: false });
+  for (const part of (p.get("cmp") || "").split("|").slice(0, MAX_COMPARE)) {
+    const [la, lo, ...rest] = part.split(",");
+    let label = rest.join(",");
+    try { label = decodeURIComponent(label); } catch (e) { /* not encoded; keep as typed */ }
+    if (inUS(+la, +lo)) compare.push({ lat: +la, lon: +lo, label: str(label, 80) || `${(+la).toFixed(3)}, ${(+lo).toFixed(3)}` });
+  }
   setView(viewMode);   // re-renders with everything above
   renderLens();
   const at = (p.get("at") || "").split(",").map(Number);
-  return at.length === 2 && at.every(isFinite) ? { lat: at[0], lon: at[1] } : null;
+  return at.length === 2 && inUS(at[0], at[1]) ? { lat: at[0], lon: at[1] } : null;
 }
 async function copyLink() {
   writeUrl();
@@ -1422,7 +1845,8 @@ function applyDef(def) {
   }
   if (GROUPS.length >= MAX_GROUPS) return `The map supports up to ${MAX_GROUPS} signals. Add this chain inside an existing signal, or remove one you added.`;
   if (!CATS.some(c => c[0] === def.cat)) def.cat = "custom";
-  const color = def.color || CUSTOM_COLORS[GROUPS.filter(g => g.custom).length % CUSTOM_COLORS.length];
+  // Colors from a saved file land in style attributes, so only plain hex colors are accepted.
+  const color = safeColor(def.color) || CUSTOM_COLORS[GROUPS.filter(g => g.custom).length % CUSTOM_COLORS.length];
   def.color = color;
   GROUPS.push({ name: sigName, cat: def.cat, color, custom: true, why: "", brands: [makeBrand(names)] });
   rebuildBrands();
@@ -1433,8 +1857,14 @@ function afterCustomChange() {
   activePreset = matchPreset(); renderPresets(); refreshAll(); renderUpcoming(); fillAddBrand(); fillCustomForm(); updateFrontierControls();
 }
 function restoreCustom(list) {
-  for (const raw of list || []) {
+  for (const raw of Array.isArray(list) ? list.slice(0, MAX_GROUPS * 4) : []) {
+    if (!raw || typeof raw !== "object") continue;
     const def = raw.type ? { ...raw } : { type: "signal", name: raw.name, alts: raw.alts, color: raw.color, cat: "custom" };   // older files
+    if (!["section", "signal", "chain"].includes(def.type)) continue;
+    def.name = str(def.name, 80); def.label = str(def.label, 80); def.group = str(def.group, 80); def.cat = str(def.cat, 100);
+    def.signal = def.signal == null ? undefined : str(def.signal, 80);
+    def.alts = Array.isArray(def.alts) ? def.alts.slice(0, 10).map(a => str(a, 80)) : [];
+    def.color = safeColor(def.color) || undefined;
     if (def.type === "section" ? CATS.some(c => c[1] === def.label) : brandByName.has(cleanNames(def)[0])) continue;
     if (!applyDef(def)) customDefs.push(def);
   }
@@ -1535,7 +1965,8 @@ function renderSources() {
     ["Store locations", n ? `${fmt(n)} stores` : "Loading…", n ? `${loadedBrands.size} chains${storeMeta.saved ? `, saved ${new Date(storeMeta.saved + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}. ${srcLine}.` : ""],
     ["Neighborhoods", tracts.length ? `${fmt(tracts.length)} tracts` : market.error ? "Didn't load" : "Loading…", `Census American Community Survey 5-year estimates${mm ? `, ${mm.acs}` : ""}.`],
     ["County growth", mm ? `Vintage ${mm.pep}` : "Loading…", "Census population estimates, July 2020 to July 2025, including domestic migration."],
-    ["Home values and rents", mm ? `Through ${monthName(mm.zori)}` : "Loading…", "Zillow Home Value Index (mid-tier) and Zillow Observed Rent Index, by county."],
+    ["Home values and rents", mm ? `Through ${monthName(mm.zori)}` : "Loading…", `Zillow Home Value Index (mid-tier) and Zillow Observed Rent Index, by county and ${zips.length ? fmt(zips.length) + " " : ""}ZIP codes.`],
+    ["Housing supply", mm ? `Permits ${mm.permits}` : "Loading…", "Census Building Permits Survey: units permitted by county, single-family and 5+ unit buildings, last three full years."],
     ["Announced openings", `${upcoming.length}`, "Company coming-soon lists and local reporting. Add your own in Openings."],
   ];
   $("sources").innerHTML = rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${escapeHtml(v)}</dd><span class="sd">${escapeHtml(d)}</span></div>`).join("");
@@ -1664,7 +2095,6 @@ $("loadBtn").addEventListener("click", loadClicked);
 
 // ---------- Opening files ----------
 const matchBrand = (...names) => { for (const n of names) { if (!n) continue; const b = BRANDS.find(b => b.rx.test(String(n).trim())); if (b) return b; } return null; };
-const inUS = (lat, lon) => lat >= 17 && lat <= 72 && lon >= -180 && lon <= -60;
 
 function parseGeoJSON(data) {
   const got = [], seen = new Set();
@@ -1713,7 +2143,7 @@ function readCSV(text) {
   for (const r of rows.slice(1)) {
     const lat = parseFloat(r[la]), lon = parseFloat(r[lo]);
     const b = matchBrand(r[bi]);
-    if (!b || !isFinite(lat) || !isFinite(lon)) { skipped++; continue; }
+    if (!b || !inUS(lat, lon)) { skipped++; continue; }
     const status = sti >= 0 ? String(r[sti] || "") : "";
     if (/coming|planned|proposed|announced|upcoming|soon|future|construction/i.test(status)) {
       ups.push({ g: b.g, b: b.name, place: [ci >= 0 ? r[ci] : "", si >= 0 ? r[si] : ""].filter(Boolean).join(", ") || `${lat.toFixed(3)}, ${lon.toFixed(3)}`,
@@ -1731,13 +2161,15 @@ function readCSV(text) {
 function loadSaved(data) {
   restoreCustom(data.custom);
   activePreset = matchPreset(); renderPresets(); fillAddBrand(); fillCustomForm(); updateFrontierControls();
-  const rows = data.stores || [];
-  stores = rows.filter(r => brandByName.has(r[0])).map(r => ({ g: brandByName.get(r[0]).g, b: r[0], lat: r[1], lon: r[2], city: r[3] || "", st: r[4] || "", src: r[5] || "OpenStreetMap" }));
+  const rows = Array.isArray(data.stores) ? data.stores : [];
+  const SRCS = ["OpenStreetMap", "All the Places", "CSV"];
+  stores = rows.filter(r => Array.isArray(r) && brandByName.has(r[0]) && inUS(r[1], r[2]))
+    .map(r => ({ g: brandByName.get(r[0]).g, b: r[0], lat: r[1], lon: r[2], city: tidyCity(str(r[3], 80)), st: toAbbr(str(r[4], 30)), src: SRCS.includes(r[5]) ? r[5] : "OpenStreetMap" }));
   brandSrc = {};
   for (const s of stores) brandSrc[s.b] = s.src;
-  if (Array.isArray(data.upcoming)) upcoming = data.upcoming.filter(u => brandByName.has(u.b)).map(u => ({ ...u, g: brandByName.get(u.b).g }));
+  if (Array.isArray(data.upcoming)) upcoming = cleanUpcoming(data.upcoming);
   // Older saved files don't record which brands were fetched, so treat a brand with stores as loaded.
-  loadedBrands = new Set((data.loaded || []).filter(n => brandByName.has(n)));
+  loadedBrands = new Set((Array.isArray(data.loaded) ? data.loaded : []).filter(n => brandByName.has(n)));
   for (const s of stores) loadedBrands.add(s.b);
   gState = GROUPS.map((g, i) => groupComplete(i) ? "done" : "idle");
   storeMeta = { saved: String(data.saved || "").slice(0, 10) };
@@ -1804,6 +2236,14 @@ $("exportBtn").addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 });
 
+// Announced openings from a file or the bundled data: known chain, known status, US coordinates, http(s) source.
+function cleanUpcoming(list) {
+  return list.filter(u => u && brandByName.has(u.b) && Object.hasOwn(STATUS_LABEL, u.status) && inUS(+u.lat, +u.lon)).slice(0, 2000).map(u => ({
+    g: brandByName.get(u.b).g, b: u.b, place: str(u.place, 120), status: u.status, when: str(u.when, 80), lat: +u.lat, lon: +u.lon,
+    src: u.src && safeUrl(u.src.url) ? { name: str(u.src.name, 120) || "Source", url: str(u.src.url, 500) } : null,
+  }));
+}
+
 // ================= Start =================
 // Some store locators publish cities in capitals ("ARLINGTON"); show them in title case.
 const tidyCity = c => c && c === c.toUpperCase() && /[A-Z]{3}/.test(c) ? c.toLowerCase().replace(/(^|[\s\-'.])([a-z])/g, (m, p, ch) => p + ch.toUpperCase()) : c;
@@ -1828,9 +2268,11 @@ async function start() {
   try {
     const [s, up] = await Promise.all([getJSON("data/stores.json"), getJSON("data/upcoming.json").catch(() => [])]);
     applyBundledStores(s);
-    upcoming = up.filter(u => brandByName.has(u.b)).map(u => ({ ...u, g: brandByName.get(u.b).g }));
+    upcoming = cleanUpcoming(Array.isArray(up) ? up : []);
+    restoreDeals();
     refreshAll(); renderUpcoming(); renderSources();
     $("overlay").hidden = true;
+    if (compare.length) afterCompareChange();
     if (at) openReport(at.lat, at.lon);
   } catch (e) {
     console.error(e);
