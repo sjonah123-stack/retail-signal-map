@@ -1,5 +1,16 @@
 # Retail Signal
 
+**[Open the live map →](https://sjonah123-stack.github.io/retail-signal-map/)**  
+https://sjonah123-stack.github.io/retail-signal-map/
+
+Or jump straight to an example:
+
+- [Multifamily site report for downtown Austin](https://sjonah123-stack.github.io/retail-signal-map/#lens=mf&map=11/30.27/-97.74&at=30.2672,-97.7431)
+- [Single-family site report for Legacy West in Plano](https://sjonah123-stack.github.io/retail-signal-map/#lens=sf&map=11/33.08/-96.83&at=33.0778,-96.8267)
+- [Dallas–Fort Worth rent growth by ZIP code](https://sjonah123-stack.github.io/retail-signal-map/#lens=mf&map=10/32.95/-96.85&color=zori1)
+- [Apartment supply pipeline by county](https://sjonah123-stack.github.io/retail-signal-map/#lens=mf&map=4.5/38.6/-96.5&color=mfpipe)
+- [Austin, Plano and Charlotte pinned for comparison](https://sjonah123-stack.github.io/retail-signal-map/#lens=mf&map=5%2F34.2000%2F-88.5000&cmp=30.26720%2C-97.74310%2CDowntown%2520Austin%7C33.07780%2C-96.82670%2CLegacy%2520West%252C%2520Plano%7C35.20870%2C-80.85710%2CUptown%2520Charlotte) (click **Compare** at the top)
+
 A site-selection map for multifamily and single-family investors. It scores every part of the US by which site-selective chains have chosen to open nearby (Costco, Trader Joe's, Whole Foods, Chick-fil-A, Life Time, CAVA and about 35 more), then layers neighborhood demographics, county growth and current market trends on top.
 
 Chains like these spend heavily on site research before they sign a lease. Where several of them cluster, incomes, traffic and growth usually back it up. Where early movers have arrived but the big anchors haven't yet, prices often haven't caught up.
