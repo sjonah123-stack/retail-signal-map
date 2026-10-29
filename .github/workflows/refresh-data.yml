@@ -30,7 +30,8 @@ jobs:
           python-version: "3.12"
       - name: Build market data
         run: python3 scripts/build_market_data.py --cache "$RUNNER_TEMP/cache"
-      # The token is only handed to git for the push, after the downloads have been parsed.
+      # Checkout keeps no credentials. Apart from setup-python, which uses the job token by default to fetch
+      # Python releases, the token only reaches git here, for the push, after the downloads have been parsed.
       - name: Commit if changed
         id: commit
         env:
@@ -72,7 +73,6 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html assets data _site/
-          touch _site/.nojekyll
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
