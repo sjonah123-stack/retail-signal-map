@@ -33,7 +33,7 @@ Chains like these spend heavily on site research before they sign a lease. Where
 
 | What | Source | Level | Updated |
 |---|---|---|---|
-| Store locations (~38,600) | [All the Places](https://www.alltheplaces.xyz/) (CC0) and [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) | Store | Snapshot of Oct 28, 2026 |
+| Store locations (~42,700) | [All the Places](https://www.alltheplaces.xyz/) (CC0) and [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) | Store | Snapshot of Oct 28, 2026; 12 chains patched Oct 29 (see [Updating the data](#updating-the-data)) |
 | Income, home value, rent, tenure, vacancy, units in structure, year built, education | Census American Community Survey 5-year, 2020–2024 | Census tract and county | Yearly (December) |
 | Population, domestic migration | Census population estimates, vintage 2025 | County | Yearly (spring) |
 | Typical home value and rent, 1/3/5-year change | Zillow Home Value Index and Zillow Observed Rent Index | County and ZIP code | Monthly |
@@ -70,6 +70,24 @@ It downloads about 400 MB of public files into `.cache/` the first time.
 ```bash
 python3 scripts/import_stores.py ~/Downloads/retail-signal-data-YYYY-MM-DD.json
 ```
+
+To patch a few chains without redoing the rest, `scripts/refresh_brands.py` replaces just those chains' stores with a chosen source: an All the Places spider (`atp:spider`, or `atp:spider@run` to use an earlier run when a spider has broken), a GeoJSON file (`file:path`), or OpenStreetMap (`osm`, which falls back to QLever's copy of OpenStreetMap when the Overpass servers are down). Join sources with `+` to fill one's gaps from another. Stores listed without coordinates are located from their addresses with the Census Bureau's batch geocoder.
+
+```bash
+python3 scripts/refresh_brands.py "Dutch Bros=atp:dutch_bros" "Erewhon=osm"
+```
+
+Each chain's source in the current data, where it isn't the original snapshot:
+
+| Chains | Source |
+|---|---|
+| Dutch Bros, The Fresh Market, Tesla (stores and service centers) | All the Places, Oct 17, 2026 run |
+| Equinox | All the Places, Oct 17, 2026 run, located by address |
+| 7 Brew | All the Places, Oct 17, 2026 run, with addresses read from each store's page URL and located; plus OpenStreetMap stores more than half a mile from any of those |
+| Lowe's | All the Places, Jul 11, 2026 run (its spider has returned almost nothing since) |
+| Erewhon, Central Market (Texas only), Alo Yoga, Aritzia, RH, Crate & Barrel | OpenStreetMap through QLever, Oct 29, 2026 (Overpass was down) |
+
+OpenStreetMap is thin for some of these: Alo Yoga and Aritzia show about a third to a half of their US stores, so a missing one there means less than a missing Lowe's.
 
 ## Hosting
 

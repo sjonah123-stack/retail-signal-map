@@ -65,9 +65,9 @@ const GROUPS = [
   { name: "Premium grocery", cat: "grocery", color: "#65a30d", why: "Specialty grocers priced above Whole Foods, in high-income neighborhoods.", brands: [
     { name: "Erewhon", sel: '["shop"]', re: "^Erewhon", ref: null, src: "No recent official count found." },
     { name: "The Fresh Market", sel: '["shop"]', re: "^The Fresh Market$", ref: null, src: "No recent official count found." },
-    { name: "Central Market", sel: '["shop"="supermarket"]', re: "^Central Market$", ref: null, src: "No recent official count found. H-E-B's upscale banner in Texas." }] },
+    { name: "Central Market", sel: '["shop"="supermarket"]["addr:state"="TX"]', re: "^Central Market$", ref: null, src: "No recent official count found. H-E-B's upscale banner, Texas only: unrelated stores elsewhere share the name." }] },
   { name: "Premium home furnishings", cat: "shopping", color: "#92400e", why: "Big-ticket home spending follows homeowners with high incomes and home equity.", brands: [
-    { name: "RH", sel: '["shop"]', re: "^(RH( |$)|Restoration Hardware)", ci: false, ref: null, src: "No recent official count found. Includes RH outlets." },
+    { name: "RH", sel: '["shop"~"^(furniture|department_store|interior_decoration|houseware)$"]', re: "^(RH( |$)|Restoration Hardware)", ci: false, ref: null, src: "No recent official count found. Includes RH outlets." },
     { name: "Williams-Sonoma", sel: '["shop"]', re: "^Williams[- ]Sonoma", ref: null, src: "No recent official count found." },
     { name: "Pottery Barn", sel: '["shop"]', re: "^Pottery Barn", ref: null, src: "No recent official count found." },
     { name: "Crate & Barrel", sel: '["shop"]', re: "^Crate (&|and) Barrel", ref: null, src: "No recent official count found." }] },
