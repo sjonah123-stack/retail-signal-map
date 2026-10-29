@@ -279,6 +279,10 @@ function toast(msg, err) {
 }
 function setStatus(msg, err) { const s = $("status"); s.textContent = msg; s.classList.toggle("err", !!err); }
 async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`); return r.json(); }
+// Deploys stamp this script's URL with ?v=<commit> (scripts/build_site.sh). Data requests carry the same stamp,
+// so a freshly deployed page never reads data its browser cached from the previous deploy.
+const BUILD = (() => { try { return new URL(document.currentScript.src).searchParams.get("v") || ""; } catch (e) { return ""; } })();
+const dataUrl = name => `data/${name}${BUILD ? `?v=${encodeURIComponent(BUILD)}` : ""}`;
 
 // ================= Map =================
 const dark = document.documentElement.dataset.theme === "dark" ||
@@ -803,11 +807,11 @@ function areaDemo(lat, lon) {
 async function loadMarket() {
   setMarketPill("busy", "Loading market data");
   try {
-    const [topo, cj, zj] = await Promise.all([getJSON("data/counties-10m.json"), getJSON("data/counties.json"), getJSON("data/zips.json")]);
+    const [topo, cj, zj] = await Promise.all([getJSON(dataUrl("counties-10m.json")), getJSON(dataUrl("counties.json")), getJSON(dataUrl("zips.json"))]);
     setCounties(topo); setCountyData(cj); setZips(zj); buildCountyLayer();
     market.counties = market.zips = true; afterMarket();
     setMarketPill("busy", "Loading neighborhoods");
-    setTracts(await getJSON("data/tracts.json"));
+    setTracts(await getJSON(dataUrl("tracts.json")));
     market.tracts = true; afterMarket();
     setMarketPill("ok", `${fmt(tracts.length)} neighborhoods`);
   } catch (e) {
@@ -2281,7 +2285,7 @@ async function start() {
   const at = readUrl();
   urlReady = true;
   try {
-    const [s, up] = await Promise.all([getJSON("data/stores.json"), getJSON("data/upcoming.json").catch(() => [])]);
+    const [s, up] = await Promise.all([getJSON(dataUrl("stores.json")), getJSON(dataUrl("upcoming.json")).catch(() => [])]);
     applyBundledStores(s);
     upcoming = cleanUpcoming(Array.isArray(up) ? up : []);
     restoreDeals();

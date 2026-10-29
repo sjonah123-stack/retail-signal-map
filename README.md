@@ -61,7 +61,7 @@ python3 scripts/import_stores.py ~/Downloads/retail-signal-data-YYYY-MM-DD.json
 
 ## Hosting
 
-The *Deploy site* workflow publishes to GitHub Pages on every push to `main`. In the repository's Settings → Pages, set Source to **GitHub Actions** once.
+The *Deploy site* workflow publishes to GitHub Pages on every push to `main`. In the repository's Settings → Pages, set Source to **GitHub Actions** once. `scripts/build_site.sh` assembles the published copy and stamps the script, stylesheet and data URLs with the commit, so visitors never pair a new page with files their browser cached from an older deploy.
 
 Address search and deal-list lookups use OpenStreetMap's free Nominatim service, which allows light use (about one request per second). Deal lists are capped at 100 lookups per upload and cached in the browser. If the site gets heavy traffic, swap in a paid geocoder in `geocode()` in `assets/app.js` and add its host to the Content Security Policy in `index.html`.
 
@@ -81,6 +81,6 @@ data/tracts.json           census tract data (column layout)
 data/counties.json         county Census, population, permits and Zillow data
 data/zips.json             ZIP code Zillow data (column layout)
 data/counties-10m.json     county outlines (us-atlas)
-scripts/                   data builders
+scripts/                   data builders and the Pages build step
 .github/workflows/         deploy and monthly data refresh
 ```
