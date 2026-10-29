@@ -1,0 +1,266 @@
+[
+ {
+  "b": "Costco",
+  "place": "Lee's Summit, MO",
+  "status": "opened",
+  "when": "Opened Oct 2, 2026",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 38.9107156,
+  "lon": -94.3821295
+ },
+ {
+  "b": "Costco",
+  "place": "Amherst, NY",
+  "status": "dated",
+  "when": "Opening Oct 28, 2026",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 42.9783924,
+  "lon": -78.7997616
+ },
+ {
+  "b": "Costco",
+  "place": "Camarillo, CA",
+  "status": "dated",
+  "when": "Opening Oct 30, 2026",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 34.2176371,
+  "lon": -119.0383541
+ },
+ {
+  "b": "Costco",
+  "place": "Downey, CA",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 33.9404441,
+  "lon": -118.1292846
+ },
+ {
+  "b": "Costco",
+  "place": "Fresno, CA",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 36.7394421,
+  "lon": -119.78483
+ },
+ {
+  "b": "Costco",
+  "place": "Lake St. Louis, MO",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 38.7850251,
+  "lon": -90.7935034
+ },
+ {
+  "b": "Costco",
+  "place": "Southborough, MA",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 42.3056501,
+  "lon": -71.5245087
+ },
+ {
+  "b": "Costco",
+  "place": "Silver Spring, MD",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 38.9997621,
+  "lon": -77.0240371
+ },
+ {
+  "b": "Costco",
+  "place": "Scottsdale, AZ",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 33.4942189,
+  "lon": -111.926018
+ },
+ {
+  "b": "Costco",
+  "place": "Des Plaines, IL",
+  "status": "planned",
+  "when": "Planned or approved, no date",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 42.0415823,
+  "lon": -87.8873916
+ },
+ {
+  "b": "Costco",
+  "place": "Pompano Beach, FL",
+  "status": "planned",
+  "when": "Around fall 2027",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 26.2378597,
+  "lon": -80.1247667
+ },
+ {
+  "b": "Costco",
+  "place": "Baldwin Village, Los Angeles, CA",
+  "status": "planned",
+  "when": "2027",
+  "src": {
+   "name": "Fox Business",
+   "url": "https://www.foxbusiness.com/retail/costco-open-new-warehouse-under-affordable-housing-development-south-los-angeles"
+  },
+  "lat": 34.022908,
+  "lon": -118.3652981
+ },
+ {
+  "b": "Costco",
+  "place": "Charleston County, SC",
+  "status": "proposed",
+  "when": "Proposal submitted",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 32.8152646,
+  "lon": -79.7996814
+ },
+ {
+  "b": "Costco",
+  "place": "Hillsborough County, FL",
+  "status": "proposed",
+  "when": "Proposal submitted",
+  "src": {
+   "name": "Costco Guides, updated Oct 10 2026",
+   "url": "https://costcoguides.com/new-costco-locations/"
+  },
+  "lat": 27.9184543,
+  "lon": -82.3488057
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Anaheim Hills, Anaheim, CA",
+  "status": "opened",
+  "when": "Opened Oct 22, 2026",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 33.8444082,
+  "lon": -117.7773862
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "West Jordan, UT",
+  "status": "opened",
+  "when": "Opened Oct 23, 2026",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 40.6061337,
+  "lon": -111.9395211
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Oswego, IL",
+  "status": "planned",
+  "when": "Coming soon",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 41.6834778,
+  "lon": -88.3525714
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Chicago, IL",
+  "status": "planned",
+  "when": "Coming soon",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 41.8755616,
+  "lon": -87.6244212
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Joliet, IL",
+  "status": "planned",
+  "when": "Coming soon",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 41.5263603,
+  "lon": -88.0840212
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Bend, OR",
+  "status": "planned",
+  "when": "Expected 2027",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 44.0581728,
+  "lon": -121.3153096
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Boynton Beach, FL",
+  "status": "planned",
+  "when": "Expected 2027",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 26.5289139,
+  "lon": -80.058141
+ },
+ {
+  "b": "Trader Joe's",
+  "place": "Phoenix, AZ",
+  "status": "planned",
+  "when": "Expected 2027",
+  "src": {
+   "name": "FOX, Oct 21 2026 (Trader Joe's coming-soon list)",
+   "url": "https://www.fox29.com/news/trader-joes-expanding-new-locations"
+  },
+  "lat": 33.4484367,
+  "lon": -112.074141
+ }
+]

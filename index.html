@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Retail Signal · Site selection map</title>
+<meta name="description" content="Find multifamily and single-family sites where site-selective retailers cluster, with neighborhood rents, incomes, home values and county growth.">
+<meta property="og:title" content="Retail Signal · Site selection map">
+<meta property="og:description" content="Where premium retailers cluster, scored for multifamily and single-family investors, with Census and Zillow market data.">
+<meta name="theme-color" content="#fcfcfb">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://server.arcgisonline.com">
+<link rel="preload" href="data/stores.json" as="fetch" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+<script src="assets/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./" aria-label="Retail Signal home">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><circle cx="16" cy="16" r="10.5" fill="none" stroke="#f39563" stroke-width="2" opacity=".6"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="#e06a35" stroke-width="2" opacity=".9"/><circle cx="16" cy="16" r="2.8" fill="var(--surface)"/></svg>
+    <span><b>Retail Signal</b><small>Site selection for multifamily and single-family</small></span>
+  </a>
+  <form class="search" id="searchForm" role="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="place" type="search" placeholder="Search an address, city, county or ZIP" aria-label="Search a place" autocomplete="off" enterkeyhint="search">
+    <kbd>/</kbd>
+  </form>
+  <div class="top-actions">
+    <button class="btn" id="shareBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1-1"/></svg>Copy link</button>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="panel" aria-label="Controls">
+    <div class="lens-wrap">
+      <p class="eyebrow">Investment lens</p>
+      <div class="lens" id="lens" role="radiogroup" aria-label="Investment lens"></div>
+      <p class="lens-desc" id="lensDesc"></p>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Panels">
+      <button role="tab" id="tab-areas" data-tab="areas" aria-selected="true" aria-controls="pane-areas">Top areas</button>
+      <button role="tab" id="tab-signals" data-tab="signals" aria-selected="false" aria-controls="pane-signals">Signals</button>
+      <button role="tab" id="tab-openings" data-tab="openings" aria-selected="false" aria-controls="pane-openings">Openings<span class="count" id="upCountBadge"></span></button>
+      <button role="tab" id="tab-data" data-tab="data" aria-selected="false" aria-controls="pane-data">Data</button>
+    </nav>
+    <div class="tabbody" id="tabbody">
+
+      <section class="pane" id="pane-areas" role="tabpanel" aria-labelledby="tab-areas">
+        <div class="block">
+          <label class="slider">Trade area radius <output id="radOut">5 mi</output>
+            <input type="range" id="rad" min="1" max="15" step="1" value="5"></label>
+          <div id="scoreOnly"><label class="slider">Shade areas scoring at least <output id="minOut">–</output>
+            <input type="range" id="minFrac" min="10" max="100" step="5" value="30"></label></div>
+          <div id="frontierBox" hidden>
+            <label class="slider">Early movers required <output id="fEarlyOut">4</output>
+              <input type="range" id="fEarly" min="1" max="7" step="1" value="4"></label>
+            <label class="slider">Late anchors allowed <output id="fLateOut">none</output>
+              <input type="range" id="fLate" min="0" max="4" step="1" value="0"></label>
+            <label class="slider">Late anchors count within <output id="fLateROut">10 mi</output>
+              <input type="range" id="fLateR" min="3" max="25" step="1" value="10"></label>
+          </div>
+        </div>
+        <div class="block">
+          <h3 class="sh">Filter and rank <span class="pill busy" id="mktPill"><span class="dot"></span>Loading market data</span></h3>
+          <div class="grid2">
+            <label class="field"><span>Household income at least</span><select id="fInc" class="inp">
+              <option value="0">Any</option><option value="50000">$50K</option><option value="65000">$65K</option><option value="80000">$80K</option><option value="100000">$100K</option><option value="125000">$125K</option></select></label>
+            <label class="field"><span>Home price at most</span><select id="fPti" class="inp">
+              <option value="0">Any</option><option value="3">3× income</option><option value="4">4× income</option><option value="5">5× income</option><option value="6">6× income</option></select></label>
+            <label class="field"><span>Renter households at least</span><select id="fRenter" class="inp">
+              <option value="0">Any</option><option value="20">20%</option><option value="30">30%</option><option value="40">40%</option><option value="50">50%</option></select></label>
+            <label class="field"><span>County growth since 2020</span><select id="fPop" class="inp">
+              <option value="-999">Any</option><option value="0">0%+</option><option value="3">3%+</option><option value="6">6%+</option><option value="10">10%+</option></select></label>
+            <label class="field"><span>County rent growth, 1 yr</span><select id="fRent" class="inp">
+              <option value="-999">Any</option><option value="0">0%+</option><option value="2">2%+</option><option value="4">4%+</option></select></label>
+            <label class="field"><span>Rank by</span><select id="sortBy" class="inp">
+              <option value="score">Signal score</option><option value="popg">Population growth</option><option value="dmig">Domestic migration</option><option value="zori1">Rent growth</option><option value="inc">Income</option><option value="pti">Most affordable</option><option value="yld">Gross yield</option></select></label>
+          </div>
+          <label class="check"><input type="checkbox" id="inView"> Only areas in the current map view</label>
+        </div>
+        <ol id="top" class="toplist" aria-label="Top areas"></ol>
+        <p class="empty-note" id="topEmpty">Loading store data…</p>
+      </section>
+
+      <section class="pane" id="pane-signals" role="tabpanel" aria-labelledby="tab-signals" hidden>
+        <div class="block">
+          <p class="hint">An area earns a signal's weight when any of its chains has a store within the trade-area radius. These chains pick sites with expensive research, so where they cluster says something about incomes, growth and traffic.</p>
+          <div class="presets" id="presets"></div>
+        </div>
+        <ul id="groups"></ul>
+        <details class="add" id="customBox">
+          <summary>Add your own chain</summary>
+          <p class="hint">Any brand works. It's matched by name in All the Places files, CSVs and OpenStreetMap, so use the name the way the chain writes it. Then load its stores from the Data tab.</p>
+          <label class="field"><span>Chain name</span><input id="cuName" class="inp" placeholder="e.g. Orangetheory"></label>
+          <label class="field"><span>Other names it goes by (optional, comma-separated)</span><input id="cuAlt" class="inp" placeholder="e.g. Orangetheory Fitness"></label>
+          <label class="field"><span>How it counts</span><select id="cuMode" class="inp">
+            <option value="signal">As its own signal</option>
+            <option value="chain">Inside an existing signal</option></select></label>
+          <label class="field" id="cuGrpWrap" hidden><span>Add it to</span><select id="cuGrp" class="inp"></select></label>
+          <label class="field" id="cuSigWrap"><span>Signal name (optional)</span><input id="cuSig" class="inp" placeholder="e.g. Concierge healthcare"></label>
+          <label class="field" id="cuSecWrap"><span>Section</span><select id="cuSec" class="inp"></select></label>
+          <label class="field" id="cuNewSecWrap" hidden><span>New section name</span><input id="cuNewSec" class="inp" placeholder="e.g. Healthcare"></label>
+          <button id="cuAdd" class="btn primary block" type="button">Add chain</button>
+        </details>
+      </section>
+
+      <section class="pane" id="pane-openings" role="tabpanel" aria-labelledby="tab-openings" hidden>
+        <div class="block">
+          <p class="hint">Announced stores the store data doesn't include yet, from company coming-soon lists and local reporting. Locations are approximate (city or area level) until the store opens.</p>
+          <label class="check" style="margin-top:0"><input type="checkbox" id="upCount"> Count announced openings in scores</label>
+          <div class="mk-legend">
+            <span class="mk"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#85837d" stroke="#fff" stroke-width="2"/></svg>Just opened</span>
+            <span class="mk"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#85837d" stroke-width="2.2"/></svg>Date set</span>
+            <span class="mk"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#85837d" stroke-width="2.2" stroke-dasharray="3 2"/></svg>Planned</span>
+            <span class="mk"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#85837d" stroke-width="2" stroke-dasharray="1 2"/></svg>Proposed</span>
+          </div>
+          <ul id="upList"></ul>
+        </div>
+        <details class="add">
+          <summary>Add an opening you know about</summary>
+          <label class="field"><span>Chain</span><select id="addBrand" class="inp"></select></label>
+          <label class="field"><span>Address or city</span><input id="addPlace" class="inp" placeholder="e.g. 1500 Main St, Frisco, TX"></label>
+          <div class="grid2">
+            <label class="field"><span>Status</span><select id="addStatus" class="inp">
+              <option value="planned">Planned</option><option value="dated">Date set</option><option value="proposed">Proposed</option><option value="opened">Just opened</option></select></label>
+            <label class="field"><span>Expected</span><input id="addWhen" class="inp" placeholder="e.g. Spring 2027"></label>
+          </div>
+          <label class="field"><span>Source link (optional)</span><input id="addSrc" class="inp" placeholder="https://"></label>
+          <button id="addBtn" class="btn primary block" type="button">Add to map</button>
+        </details>
+      </section>
+
+      <section class="pane" id="pane-data" role="tabpanel" aria-labelledby="tab-data" hidden>
+        <div class="block">
+          <h3 class="sh">What's on the map</h3>
+          <dl class="sources" id="sources"></dl>
+        </div>
+        <div class="block">
+          <h3 class="sh">Update store data</h3>
+          <p class="hint">The map ships with a saved snapshot. Refresh any chain from OpenStreetMap (a few minutes), or open All the Places brand files (.geojson) or CSVs with brand, latitude and longitude columns. Save afterward to keep the result.</p>
+          <div class="row"><button id="loadBtn" class="btn" type="button">Refresh from OpenStreetMap</button></div>
+          <div class="row">
+            <button id="importBtn" class="btn" type="button">Open files</button>
+            <button id="exportBtn" class="btn" type="button">Save data</button>
+            <input type="file" id="fileIn" accept=".json,.geojson,.csv,.tsv,application/json,application/geo+json,text/csv" multiple hidden>
+          </div>
+          <div class="progress" id="progress"><i></i></div>
+          <p id="status" class="status" role="status"></p>
+        </div>
+        <div class="block prose">
+          <h3 class="sh">How to read it</h3>
+          <p>Every cell of the map (about 1.7 miles across at a 5-mile radius) scores the weights of the signals with a store within the radius. Shading starts at the threshold you set in Top areas.</p>
+          <p>Neighborhood figures combine the census tracts whose centers fall inside the trade area, weighted by households. They're averages of tract medians, a good screen but not a true median.</p>
+          <p>The percentage beside each chain in Signals compares the stores found with the chain's latest reported count. Brand-new stores often reach Google Maps first, so use the links in each site report to confirm what's open.</p>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div class="mapwrap" id="mapwrap">
+    <div id="map" role="application" aria-label="Map. Click anywhere for a site report."></div>
+    <div class="maptools">
+      <div class="seg" role="group" aria-label="Basemap">
+        <button type="button" data-b="map" aria-pressed="true">Map</button><button type="button" data-b="satellite" aria-pressed="false">Satellite</button>
+      </div>
+      <div class="seg" role="group" aria-label="Layers">
+        <button type="button" data-t="stores" aria-pressed="true">Stores</button><button type="button" data-t="up" aria-pressed="true">Openings</button>
+      </div>
+    </div>
+    <div class="legendcard" id="legendCard">
+      <div class="lhead">
+        <select id="colorBy" aria-label="Color the map by"></select>
+        <button class="icon-btn" id="legendMin" type="button" aria-label="Collapse legend" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      </div>
+      <div class="lbody">
+        <div class="ramp" id="ramp"></div>
+        <p class="lnote" id="lnote"></p>
+        <label class="lopacity">Opacity <input type="range" id="opacity" min="20" max="100" step="5" value="70" aria-label="Shading opacity"></label>
+      </div>
+    </div>
+    <aside class="report" id="report" hidden aria-label="Site report"></aside>
+    <div class="overlay" id="overlay"><div class="ocard"><div class="spinner"></div><b id="oTitle">Loading store locations…</b><p id="oText">About 38,000 stores across 40 chains.</p></div></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</main>
+</body>
+</html>
