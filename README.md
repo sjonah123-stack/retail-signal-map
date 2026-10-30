@@ -18,7 +18,7 @@ Chains like these spend heavily on site research before they sign a lease. Where
 ## What it does
 
 - **Investment lenses.** Multifamily, Single-family, Retail signal and Frontier each set a chain weighting and starting filters for that buyer. The weightings are fitted to what each buyer is looking for (see [How the weights were set](#how-the-weights-were-set)). Everything stays adjustable.
-- **Top areas.** A ranked list of the best-scoring areas, filtered by household income, price-to-income, renter share, county population growth, rent growth and apartment pipeline. Rank by signal score, population growth, domestic migration, rent growth, income, affordability, gross yield or least new supply. Export the list to CSV.
+- **Top areas.** A ranked list of the best-scoring areas, filtered by household income, price-to-income, renter share, county population growth, rent growth and apartment pipeline. Multifamily and Single-family rank by an overall score, half signal score and half market momentum (see [Overall rank](#overall-rank)). Or rank by signal score, population growth, domestic migration, rent growth, income, affordability, gross yield or least new supply. Export the list to CSV.
 - **Site reports.** Click anywhere (or search an address) for a report on that spot: signal score and national percentile; trade-area rent, renter share, rental vacancy, apartment share, income, home value, price-to-income, gross yield, age of housing, education and density; the ZIP code's Zillow rent and home value trends; county population growth, domestic migration, building permits and apartment pipeline; and every chain nearby with Google Maps links to confirm each store. Reports print cleanly to PDF.
 - **Compare.** Pin up to four sites from their reports and see them side by side, with the best value in each row highlighted. Export to CSV or print.
 - **Score a deal list.** Upload a CSV of properties (addresses or coordinates). Every site is located, scored under the current lens and ranked, with your own columns (units, price) carried through to the export. The list stays in your browser.
@@ -76,6 +76,19 @@ What the fit showed:
 - **Chains are a weak guide for single-family** once the lens's filters apply. The old weights ranked areas slightly backwards, because everyday chains mark older, built-out suburbs, and the newer, faster-growing ones often don't have them yet.
 - **Premium preschools (Primrose, Goddard) are the strongest single signal in the data**, ahead of Life Time and Trader Joe's.
 - **California is underrated** by every weighting tried: its home values and rents top the national affluence measures, but premium preschools, Life Time and the regional grocers are scarce there.
+
+### Overall rank
+
+Because chains mark proven demand but not momentum, Multifamily and Single-family rank Top areas, deal lists and comparisons on an overall score out of 100: half the signal score (as a share of its maximum) and half market momentum. Momentum averages where the area ranks against the rest of the US, from 0 to 100, on:
+
+| Multifamily | Single-family |
+|---|---|
+| Net domestic migration, 2021–25 (county) | Net domestic migration, 2021–25 (county) |
+| Population growth last year (county) | Population growth last year (county) |
+| Rent change, 1 year (ZIP, else county) | Home value change, 1 year (ZIP, else county) |
+| Apartment pipeline (county; less new supply ranks higher) | |
+
+County measures are ranked against every county weighted by population, so 50 is where a typical American lives; ZIP measures against every ZIP with Zillow data. With chains alone, 16 Multifamily areas tied at the maximum; the overall score spreads the top from 82 down to 71. The map's shading is still the signal score. A 1-year ZIP change can be noisy, so the site report lists each part's percentile.
 
 To recheck the weights after a data refresh (it prints each group's fit next to its current weight, and each preset's ranking quality):
 

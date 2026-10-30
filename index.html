@@ -86,10 +86,11 @@
           </div>
           <div class="grid2" style="margin-top:10px">
             <label class="field"><span>Rank by</span><select id="sortBy" class="inp">
-              <option value="score">Signal score</option><option value="popg">Population growth</option><option value="dmig">Domestic migration</option><option value="zori1">Rent growth</option><option value="inc">Income</option><option value="pti">Most affordable</option><option value="yld">Gross yield</option><option value="mfpipe">Least new supply</option></select></label>
+              <option value="overall">Overall rank</option><option value="score">Signal score</option><option value="popg">Population growth</option><option value="dmig">Domestic migration</option><option value="zori1">Rent growth</option><option value="inc">Income</option><option value="pti">Most affordable</option><option value="yld">Gross yield</option><option value="mfpipe">Least new supply</option></select></label>
             <label class="field"><span>&nbsp;</span><button id="topExport" class="btn block" type="button">Export CSV</button></label>
           </div>
           <label class="check"><input type="checkbox" id="inView"> Only areas in the current map view</label>
+          <p class="hint muted top-note" id="topNote" hidden></p>
         </div>
         <ol id="top" class="toplist" aria-label="Top areas"></ol>
         <p class="empty-note" id="topEmpty">Loading store data…</p>

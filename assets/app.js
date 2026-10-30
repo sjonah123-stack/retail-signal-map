@@ -120,12 +120,12 @@ const PRESETS = [
 // A lens is a starting point: a weighting, a scoring mode and a set of filters for one kind of buyer.
 const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999, pipe: 0 };
 const LENSES = [
-  { id: "mf", name: "Multifamily", short: "Well-paid renters, growing counties", preset: "mf", mode: "score", filters: { renter: 30, popg: 0 },
+  { id: "mf", name: "Multifamily", short: "Well-paid renters, growing counties", preset: "mf", mode: "score", sort: "overall", filters: { renter: 30, popg: 0 },
     icon: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',
-    desc: "Keeps areas where 30%+ of households rent in counties that are still growing, and weights the chains that best predicted high rents and college-educated renters there (premium preschools, Life Time, Trader Joe's). Chain clusters mark proven demand, not recent rent growth, so check rent change and the apartment pipeline too." },
-  { id: "sf", name: "Single-family", short: "Family growth suburbs, attainable prices", preset: "sf", mode: "score", filters: { inc: 65000, pti: 5, popg: 3 },
+    desc: "Keeps areas where 30%+ of households rent in growing counties. The signal score weights the chains that best predicted high rents and college-educated renters (premium preschools, Life Time, Trader Joe's). Chains mark proven demand but not momentum, so Top areas rank on both." },
+  { id: "sf", name: "Single-family", short: "Family growth suburbs, attainable prices", preset: "sf", mode: "score", sort: "overall", filters: { inc: 65000, pti: 5, popg: 3 },
     icon: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5"/>',
-    desc: "Keeps areas with $65K+ incomes, homes under 5× income and 3%+ county growth since 2020, and weights the few chains that marked the best family suburbs among them (premium preschools, Life Time, regional grocers). Chains are a weak guide here: the filters do most of the work." },
+    desc: "Keeps areas with $65K+ incomes, homes under 5× income and 3%+ county growth since 2020. The signal score weights the few chains that marked the best family suburbs (premium preschools, Life Time, regional grocers). Chains are a weak guide here, so Top areas rank on market momentum too." },
   { id: "retail", name: "Retail signal", short: "Where site-selective chains cluster", preset: "all", mode: "score", filters: {},
     icon: '<path d="M5 8h14l-1 12H6L5 8ZM9 8V6a3 3 0 0 1 6 0v2"/>',
     desc: "Every signal counts once, with no filters: the plain read of where site-selective chains have chosen to be." },
@@ -690,6 +690,7 @@ function setCountyData(j) {
     if (d.mf5n && d.p5_36 != null) c.mfpipe = d.p5_36 / d.mf5n * 100;
     cdata.set(fips, c);
   }
+  for (const k of ["dmig", "popg1", "mfpipe"]) setRanking(k, [...cdata.values()].map(c => [c[k], c.pep || c.pop]));
   countyCache.clear();
 }
 function setTracts(j) {
@@ -718,6 +719,7 @@ function setZips(j) {
     list.push(z);
   }
   zips = list.sort((a, b) => b.area - a.area);
+  for (const k of ["zori1", "zhvi1"]) setRanking(k, zips.map(z => [z[k], 1]));
   zipBuckets = new Map();
   for (const z of zips) {
     const k = bucketKey(Math.floor(z.lat / SB), Math.floor(z.lon / SB));
@@ -807,9 +809,48 @@ function areaDemo(lat, lon) {
   const cty = countyAt(lat, lon), cd = cty?.d;
   const z = zipAt(lat, lon);
   const pick = k => ta?.[k] ?? cd?.[k] ?? null;
-  return { ta, cty, z, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
-    popg: cd?.popg ?? null, dmig: cd?.dmig ?? null, zori1: z?.zori1 ?? cd?.zori1 ?? null, mfpipe: cd?.mfpipe ?? null };
+  const d = { ta, cty, z, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
+    popg: cd?.popg ?? null, ...marketOf(cd, z) };
+  d.mom = momentum(d);
+  return d;
 }
+
+// ---------- Market momentum ----------
+// Where demand is heading now, read from the market data rather than the chains. Each part is ranked against the
+// rest of the US (counties weighted by population, ZIP codes equally) and the ranks averaged, so 50 is a typical
+// place. Chain clusters mark proven demand but not momentum, so the investor lenses rank Top areas on both.
+const MOMENTUM = {
+  mf: [["dmig", "migration"], ["popg1", "population growth last year"], ["zori1", "1-year rent change"], ["mfpipe", "apartment pipeline", -1]],
+  sf: [["dmig", "migration"], ["popg1", "population growth last year"], ["zhvi1", "1-year home value change"]],
+};
+const OVERALL_MIX = 0.5;   // share of the overall rank that comes from the signal score; the rest is momentum
+const marketOf = (cd, z) => ({ dmig: cd?.dmig ?? null, popg1: cd?.popg1 ?? null, mfpipe: cd?.mfpipe ?? null,
+  zori1: z?.zori1 ?? cd?.zori1 ?? null, zhvi1: z?.zhvi1 ?? cd?.zhvi1 ?? null });
+const rankings = {};
+function setRanking(k, pairs) {
+  const v = pairs.filter(([x, w]) => x != null && isFinite(x) && w > 0).sort((a, b) => a[0] - b[0]);
+  const cum = new Float64Array(v.length + 1);
+  v.forEach(([, w], i) => { cum[i + 1] = cum[i] + w; });
+  rankings[k] = { x: v.map(p => p[0]), cum };
+}
+// Percent of the US below v, counting ties as half.
+function pctRank(k, v) {
+  const r = rankings[k];
+  if (!r || !r.x.length || v == null || !isFinite(v)) return null;
+  const bound = up => { let lo = 0, hi = r.x.length; while (lo < hi) { const m = (lo + hi) >> 1; if (r.x[m] < v || (up && r.x[m] === v)) lo = m + 1; else hi = m; } return lo; };
+  const a = bound(false), b = bound(true);
+  return (r.cum[a] + (r.cum[b] - r.cum[a]) / 2) / r.cum[r.x.length] * 100;
+}
+// d holds a place's market figures (see marketOf). Null for lenses without a momentum measure, or with under two parts.
+function momentum(d, id = lens) {
+  const spec = MOMENTUM[id];
+  if (!spec || !d) return null;
+  const parts = spec.map(([k, label, dir]) => { const p = pctRank(k, d[k]); return { k, label, p: p == null ? null : dir < 0 ? 100 - p : p }; });
+  const ok = parts.filter(x => x.p != null);
+  return ok.length >= 2 ? { score: ok.reduce((a, x) => a + x.p, 0) / ok.length, parts: ok } : null;
+}
+const overallOf = (score, mom) => mom && maxW ? Math.round(100 * (OVERALL_MIX * score / maxW + (1 - OVERALL_MIX) * mom.score / 100)) : null;
+const nth = p => { const n = Math.min(99, Math.max(1, Math.round(p))); return n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); };
 
 async function loadMarket() {
   setMarketPill("busy", "Loading market data");
@@ -975,7 +1016,12 @@ const CHIP = {
   dmig: d => d.dmig != null && `<b>${pct(d.dmig)}</b> migration`,
   zori1: d => d.zori1 != null && `<b>${pct(d.zori1)}</b> rent 1-yr`,
   mfpipe: d => d.mfpipe != null && `<b>${d.mfpipe.toFixed(1)}%</b> pipeline`,
+  popg1: d => d.popg1 != null && `<b>${pct(d.popg1)}</b> pop last yr`,
+  zhvi1: d => d.zhvi1 != null && `<b>${pct(d.zhvi1)}</b> home value 1-yr`,
+  sig: d => d.score != null && `<b>${d.score}/${maxW}</b> signals`,
+  mom: d => d.mom && `<b>${Math.round(d.mom.score)}</b> momentum`,
 };
+const OVERALL_CHIPS = { mf: ["sig", "mom", "dmig", "zori1", "mfpipe"], sf: ["sig", "mom", "dmig", "zhvi1", "pti"] };
 const SORT_ASC = new Set(["pti", "mfpipe"]);   // lower is better
 // Equal scores are common at the top. The investor lenses put the faster-growing county first: chain clusters mark
 // proven demand, not momentum, and store count (the fallback) favors built-out retail hubs.
@@ -990,6 +1036,12 @@ function passes(d) {
   return true;
 }
 const filtering = () => filt.inc > 0 || filt.pti > 0 || filt.renter > 0 || filt.popg > -999 || filt.zori1 > -999 || filt.pipe > 0;
+// A ranked row: the overall rank out of 100 when there is one, otherwise the signal score.
+function rankRow(score, ov, chips) {
+  const f = ov != null ? ov / 100 : maxW ? score / maxW : 0, of = t => `<span style="color:var(--muted);font-weight:500">/${t}</span>`;
+  return `<span class="tname"></span><span class="tscore">${ov != null ? ov + of(100) : score + of(maxW)}</span>
+    <span class="tbar"><i style="width:${Math.round(f * 100)}%;background:${stepColor(f)}"></i></span>${chips ? `<span class="chips">${chips}</span>` : ""}`;
+}
 let topItems = [];
 function updateTop() {
   const ol = $("top"); ol.innerHTML = "";
@@ -999,11 +1051,17 @@ function updateTop() {
   if (!cells.length || maxW === 0) { empty.textContent = "Turn on at least one signal in the Signals tab."; empty.hidden = false; return; }
   const haveDemo = market.counties || market.tracts;
   const useFilters = filtering() && haveDemo;
-  const ranked = sortBy !== "score" && haveDemo;
+  const overall = sortBy === "overall" && haveDemo && !!MOMENTUM[lens];
+  const ranked = sortBy !== "score" && !overall && haveDemo;
   const tie = sortBy === "score" && haveDemo ? TIE_BY[lens] : null;
+  $("topNote").hidden = !overall;
+  if (overall) {
+    const parts = MOMENTUM[lens].map(([, label, dir]) => dir < 0 ? `${label} (less is better)` : label);
+    $("topNote").textContent = `Overall is half the signal score and half market momentum: how the area ranks against the rest of the US on ${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`;
+  }
   const onlyView = $("inView").checked, bnd = map.getBounds();
   const sep = Math.max(12, radius * 3);
-  const limit = ranked || tie ? 160 : 25;
+  const limit = ranked || tie || overall ? 160 : 25;
   const th = threshold();
   const picks = [];
   let checks = 0;
@@ -1014,6 +1072,7 @@ function updateTop() {
     if (picks.some(p => distMi(p.c.lat, p.c.lon, c.lat, c.lon) < sep)) continue;
     let d = {};
     if (haveDemo) { checks++; d = areaDemo(c.lat, c.lon); if (useFilters && !passes(d)) continue; }
+    d.score = c.score; d.overall = overall ? overallOf(c.score, d.mom) : null;
     picks.push({ c, d });
   }
   if (ranked) {
@@ -1028,6 +1087,9 @@ function updateTop() {
     const v = p => p.d[tie] ?? -1e9;
     picks.sort((a, b) => b.c.score - a.c.score || v(b) - v(a));
     picks.length = Math.min(picks.length, 25);
+  } else if (overall) {
+    picks.sort((a, b) => (b.d.overall ?? -1) - (a.d.overall ?? -1) || b.c.score - a.c.score);
+    picks.length = Math.min(picks.length, 25);
   }
   if (!picks.length) {
     empty.textContent = filtering() && !haveDemo ? "Loading market data for the filters…"
@@ -1037,16 +1099,12 @@ function updateTop() {
     empty.hidden = false; return;
   }
   empty.hidden = true;
-  const chipKeys = LENS_CHIPS[lens].slice();
+  const chipKeys = (overall ? OVERALL_CHIPS[lens] : LENS_CHIPS[lens]).slice();
   if (ranked && !chipKeys.includes(sortBy)) chipKeys.unshift(sortBy);
   for (const { c, d } of picks) {
     const li = document.createElement("li");
     li.tabIndex = 0;
-    const f = c.score / maxW;
-    const chips = haveDemo ? chipKeys.map(k => { const h = CHIP[k](d); return h ? `<span class="chip${ranked && k === sortBy ? " hl" : ""}">${h}</span>` : ""; }).join("") : "";
-    li.innerHTML = `<span class="tname"></span><span class="tscore">${c.score}<span style="color:var(--muted);font-weight:500">/${maxW}</span></span>
-      <span class="tbar"><i style="width:${Math.round(f * 100)}%;background:${stepColor(f)}"></i></span>
-      ${chips ? `<span class="chips">${chips}</span>` : ""}`;
+    li.innerHTML = rankRow(c.score, overall ? d.overall : null, haveDemo ? chipKeys.map(k => { const h = CHIP[k](d); return h ? `<span class="chip${ranked && k === sortBy ? " hl" : ""}">${h}</span>` : ""; }).join("") : "");
     li.querySelector(".tname").textContent = placeLabel(c.lat, c.lon);
     const go = () => {
       map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 11), { duration: 0.8 });
@@ -1167,6 +1225,8 @@ function renderReport() {
 
   const dl = rows => `<dl class="mkt">${rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`;
   const zp = zipAt(lat, lon);
+  const mom = frontier ? null : momentum(marketOf(cd, zp));
+  const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}`).join(", ")}${mom.parts.some(x => x.k === "mfpipe") ? " (less new supply ranks higher)" : ""}. Overall is half the signal score and half momentum.</div>` : "";
   const zipRows = [];
   if (zp?.zori) zipRows.push([`Typical rent (${monthName(marketMeta?.zori)})`, dollars(zp.zori), `${chg(zp.zori1)} 1 yr · ${chg(zp.zori3)} 3 yr`]);
   if (zp?.zhvi) zipRows.push([`Typical home value (${monthName(marketMeta?.zhvi)})`, money(zp.zhvi), `${chg(zp.zhvi1)} 1 yr · ${chg(zp.zhvi5)} 5 yr`]);
@@ -1199,7 +1259,7 @@ function renderReport() {
         <div class="dial" style="--f:${f.toFixed(3)};--c:${score ? stepColor(f) : "var(--chip)"}"><b>${score}<small>of ${maxW}</small></b></div>
         <div><p class="t">${title}</p><p class="s">${[shareTxt, `${fmt(within)} tracked stores nearby`].filter(Boolean).join(" · ")}</p></div>
       </div>
-      ${fline}
+      ${fline}${mline}
       <h3 class="rp-h">Trade area <span>within ${radius} mi${ta ? ` · ${big(ta.pop)} people` : ""}</span></h3>
       ${kpis}
       ${zipBox}
@@ -1235,9 +1295,9 @@ const lensName = () => LENSES.find(l => l.id === lens).name;
 const today = () => new Date().toISOString().slice(0, 10);
 const rnd = (v, d = 0) => v == null || !isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d;
 function siteMetrics(lat, lon, label, extra = {}) {
-  const sc = scoreAt(lat, lon);
+  const sc = scoreAt(lat, lon), cd = countyAt(lat, lon)?.d || {}, z = zipAt(lat, lon) || {};
   return { label: label || placeLabel(lat, lon), extra, lat, lon, sc, top: sc.frontier ? null : topShare(sc.score),
-    ta: tradeArea(lat, lon, radius) || {}, cd: countyAt(lat, lon)?.d || {}, z: zipAt(lat, lon) || {} };
+    ta: tradeArea(lat, lon, radius) || {}, cd, z, mom: sc.frontier ? null : momentum(marketOf(cd, z)) };
 }
 // One list drives both the CSV columns and the compare table. better: 1 = higher is better, -1 = lower is better.
 const pctPlain = v => v.toFixed(1) + "%";
@@ -1251,6 +1311,8 @@ const SITE_FIELDS = [
   F("Score", "Signal score", s => s.sc.score, v => `${v} of ${maxW}`, 1),
   F("Score", "Max points", () => maxW, null, 0, false),
   F("Score", "Top % of scored US areas", s => rnd(s.top, 1), v => v < 1 ? "Top 1%" : `Top ${Math.ceil(v)}%`, -1),
+  F("Score", "Market momentum (0-100)", s => rnd(s.mom?.score), String, 1),
+  F("Score", "Overall (0-100)", s => s.mom ? overallOf(s.sc.score, s.mom) : null, String, 1),
   F("Score", "Tracked stores nearby", s => s.sc.within, fmt, 1),
   F("Score", "Signals present", s => GROUPS.filter((g, i) => s.sc.near[i] && s.sc.near[i].d <= radius && groupVisible(i)).map(g => g.name).join("; "), null, 0, false),
   F("Trade area", "People", s => rnd(s.ta.pop), big),
@@ -1346,8 +1408,9 @@ function renderCompare() {
   let sec = "", body = "";
   for (const f of SITE_FIELDS) {
     if (!f.cmp) continue;
-    if (f.sec !== sec) { sec = f.sec; body += `<tr class="sec"><th colspan="${sites.length + 1}">${escapeHtml(sec === "Trade area" ? `Trade area · within ${radius} mi` : sec)}</th></tr>`; }
     const vals = sites.map(s => f.get(s));
+    if (vals.every(v => v == null || v === "")) continue;   // e.g. momentum, outside the investor lenses
+    if (f.sec !== sec) { sec = f.sec; body += `<tr class="sec"><th colspan="${sites.length + 1}">${escapeHtml(sec === "Trade area" ? `Trade area · within ${radius} mi` : sec)}</th></tr>`; }
     const shown = vals.map(v => v == null || v === "" ? "–" : f.show ? f.show(v) : String(v));
     // Highlight by what's displayed, so two sites that both read "Top 1%" are treated as a tie.
     const nums = vals.filter(v => typeof v === "number" && isFinite(v));
@@ -1482,22 +1545,24 @@ function renderDeals() {
   dealLayer.clearLayers();
   if (!deals.length) { dealRanked = []; return; }
   const placed = d => d.status === "ok" && stores.length;
-  dealRanked = deals.map(d => ({ d, sc: placed(d) ? scoreAt(d.lat, d.lon) : null }))
-    .sort((a, b) => (b.sc?.score ?? -1) - (a.sc?.score ?? -1));
+  // Ranked like Top areas: by the overall rank in the investor lenses (once market data is in), else the signal score.
+  const overall = market.counties && !!MOMENTUM[lens] && viewMode !== "frontier";
+  dealRanked = deals.map(d => {
+    const sc = placed(d) ? scoreAt(d.lat, d.lon) : null, demo = sc && market.counties ? areaDemo(d.lat, d.lon) : null;
+    if (demo) demo.score = sc.score;
+    return { d, sc, demo, ov: overall && demo ? overallOf(sc.score, demo.mom) : null };
+  }).sort((a, b) => (b.ov ?? -1) - (a.ov ?? -1) || (b.sc?.score ?? -1) - (a.sc?.score ?? -1));
   const ok = dealRanked.filter(x => x.sc).length;
   $("dealHead").textContent = `${ok} of ${deals.length} ${deals.length === 1 ? "site" : "sites"} scored`;
-  $("dealLens").textContent = `Ranked by ${lensName()}`;
+  $("dealLens").textContent = `Ranked by ${lensName()}${overall ? ": signals and momentum" : ""}`;
   $("dealMore").hidden = !deals.some(d => d.status === "skipped" || d.status === "error");
   const ol = $("dealList"); ol.innerHTML = "";
-  const chipKeys = LENS_CHIPS[lens];
-  dealRanked.forEach(({ d, sc }, i) => {
+  const chipKeys = overall ? OVERALL_CHIPS[lens] : LENS_CHIPS[lens];
+  dealRanked.forEach(({ d, sc, demo, ov }, i) => {
     const li = document.createElement("li");
     li.tabIndex = 0;
     if (sc) {
-      const f = maxW ? sc.score / maxW : 0, demo = market.counties ? areaDemo(d.lat, d.lon) : null;
-      const chips = demo ? chipKeys.map(k => { const h = CHIP[k](demo); return h ? `<span class="chip">${h}</span>` : ""; }).join("") : "";
-      li.innerHTML = `<span class="tname"></span><span class="tscore">${sc.score}<span style="color:var(--muted);font-weight:500">/${maxW}</span></span>
-        <span class="tbar"><i style="width:${Math.round(f * 100)}%;background:${stepColor(f)}"></i></span>${chips ? `<span class="chips">${chips}</span>` : ""}`;
+      li.innerHTML = rankRow(sc.score, ov, demo ? chipKeys.map(k => { const h = CHIP[k](demo); return h ? `<span class="chip">${h}</span>` : ""; }).join("") : "");
       const go = () => { map.flyTo([d.lat, d.lon], Math.max(map.getZoom(), 12), { duration: 0.8 }); openReport(d.lat, d.lon, d.name); };
       li.addEventListener("click", go);
       li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
@@ -1554,7 +1619,9 @@ function renderLens() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${l.icon}</svg>
     <b>${escapeHtml(l.name)}</b><span>${escapeHtml(l.short)}</span></button>`).join("");
   $("lens").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { if (b.dataset.lens !== lens || lensDirty()) applyLens(b.dataset.lens); }));
-  $("sortBy").options[0].textContent = TIE_BY[lens] ? "Signal score, then county growth" : "Signal score";
+  $("sortBy").querySelector('[value="score"]').textContent = TIE_BY[lens] ? "Signal score, then county growth" : "Signal score";
+  const ov = $("sortBy").querySelector('[value="overall"]');
+  ov.hidden = ov.disabled = !MOMENTUM[lens];
   renderLensDesc();
 }
 function lensDefaults(id = lens) {
@@ -1565,7 +1632,7 @@ function lensDirty() {
   const { L0, w, f } = lensDefaults();
   if (L0.mode === "score" && w.some((v, i) => v !== weights[i])) return true;
   if (L0.mode === "frontier" && roles.some((r, i) => r !== (DEFAULT_ROLE[GROUPS[i].name] || "none"))) return true;
-  return Object.keys(f).some(k => f[k] !== filt[k]) || sortBy !== "score";
+  return Object.keys(f).some(k => f[k] !== filt[k]) || sortBy !== (L0.sort || "score");
 }
 function renderLensDesc() {
   const { L0 } = lensDefaults();
@@ -1576,7 +1643,7 @@ function applyLens(id) {
   const { L0, w, f } = lensDefaults(id);
   lens = L0.id;
   weights = w; activePreset = PRESETS.findIndex(p => p.id === L0.preset);
-  filt = f; sortBy = "score";
+  filt = f; sortBy = L0.sort || "score";
   if (L0.mode === "frontier") roles = GROUPS.map(g => DEFAULT_ROLE[g.name] || "none");
   setFilterInputs();
   renderLens();
@@ -1744,12 +1811,12 @@ function writeUrl() {
     if (minEarly !== 4 || maxLate !== 0 || lateRadius !== 10) p.set("fr", `${minEarly}.${maxLate}.${lateRadius}`);
   }
   if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe].join("_"));
-  if (sortBy !== "score") p.set("sort", sortBy);
+  if (sortBy !== (L0.sort || "score")) p.set("sort", sortBy);
   if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}`);
   if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
 }
-const SORTS = ["score", "popg", "dmig", "zori1", "inc", "pti", "yld", "mfpipe"];
+const SORTS = ["overall", "score", "popg", "dmig", "zori1", "inc", "pti", "yld", "mfpipe"];
 function readUrl() {
   const p = new URLSearchParams(location.hash.slice(1));
   applyLens(LENSES.some(l => l.id === p.get("lens")) ? p.get("lens") : "mf");
@@ -1769,7 +1836,8 @@ function readUrl() {
     const v = f.split("_").map(Number);
     if ((v.length === 5 || v.length === 6) && v.every(isFinite)) filt = { inc: v[0], pti: v[1], renter: v[2], popg: v[3], zori1: v[4], pipe: v[5] || 0 };
   }
-  if (SORTS.includes(p.get("sort"))) sortBy = p.get("sort");
+  const sort = p.get("sort");
+  if (SORTS.includes(sort) && (sort !== "overall" || MOMENTUM[lens])) sortBy = sort;
   setFilterInputs();
   colorBy = hasMetric(p.get("color")) ? p.get("color") : "score";
   // Coordinates are range-checked: a link with an absurd value would otherwise freeze the grid loops.
@@ -2306,7 +2374,7 @@ const TOUR = [
   { el: () => $("report").querySelector('[data-act="cmp"]'), side: "left", report: true, title: "Compare up to four sites",
     text: "Add sites from their reports, then click Compare at the top to see them side by side, with the best value in each row highlighted. Export or print the table." },
   { el: () => $("filterBlock"), tab: "areas", side: "right", title: "Top areas",
-    text: "The best-scoring places under your lens are listed below these controls. Filter by income, affordability, renter share, growth, rent growth and apartment pipeline, rank them your way, and export the list to CSV." },
+    text: "The best places under your lens are listed below these controls. Multifamily and Single-family rank them on the signal score and market momentum together. Filter by income, affordability, renter share, growth, rent growth and apartment pipeline, rank them your way, and export the list to CSV." },
   { el: () => $("dealIntro"), tab: "deals", side: "right", title: "Score your own deal list",
     text: "Upload a CSV of properties with addresses or coordinates. Each one is scored under the current lens and ranked, and your own columns, like units or price, carry through to the export. The list stays in your browser." },
   { el: () => $("shareBtn"), side: "bottom", title: "Share exactly what you see",
