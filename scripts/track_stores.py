@@ -183,6 +183,9 @@ def main():
             snap[brand] = {"run": steps[0], "stores": first} if first else None
         walk = steps[1:]
     else:
+        if state.get("run") == latest:
+            print(f"Already at the newest All the Places run ({latest}).")
+            return
         for brand, spider in CHAINS.items():
             st = state["chains"].get(brand)
             if st and st.get("spider") == spider:

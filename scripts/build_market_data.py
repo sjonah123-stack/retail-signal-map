@@ -15,6 +15,7 @@ Everything comes from free bulk downloads that need no API key:
   - For-sale listings: inventory, days on market, price cuts by ZIP and county (Realtor.com research data)
   - Apartment vacancy and concessions by county and metro (Apartment List research data)
   - County to metro area (NBER copy of the Census CBSA delineation)
+  - The city, town or community each tract is in (Census places and 2020 block assignment files)
 
 Usage:
   python3 scripts/build_market_data.py [--acs auto] [--pep auto] [--cache .cache]
@@ -30,6 +31,8 @@ DATA = os.path.join(ROOT, "data")
 ACS_URL = "https://www2.census.gov/programs-surveys/acs/summary_file/{y}/table-based-SF/data/5YRData/acsdt5y{y}-{t}.dat"
 GAZ_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{y}_Gazetteer/{y}_Gaz_tracts_national.zip"
 GAZ_ZCTA_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{y}_Gazetteer/{y}_Gaz_zcta_national.zip"
+GAZ_PLACE_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{y}_Gazetteer/{y}_Gaz_place_national.zip"
+BAF_URL = "https://www2.census.gov/geo/docs/maps-data/data/baf2020/BlockAssign_ST{fips}_{st}.zip"
 PEP_URL = "https://www2.census.gov/programs-surveys/popest/datasets/2020-{y}/counties/totals/co-est{y}-alldata.csv"
 BPS_URL = "https://www2.census.gov/econ/bps/County/co{code}.txt"   # code: yyyya (annual) or yymmy (year to date)
 ZILLOW = "https://files.zillowstatic.com/research/public_csvs/"
@@ -45,6 +48,10 @@ APTLIST_PAGE = "https://www.apartmentlist.com/research/category/data-rent-estima
 CBSA_URL = "https://data.nber.org/cbsa-csa-fips-county-crosswalk/2023/cbsa2fipsxw_2023.csv"
 STATES = ("al ak az ar ca co ct de dc fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok or pa "
           "ri sc sd tn tx ut vt va wa wv wi wy").split()
+STATE_FIPS = dict(zip(STATES + ["pr"], "01 02 04 05 06 08 09 10 11 12 13 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 "
+                     "35 36 37 38 39 40 41 42 44 45 46 47 48 49 50 51 53 54 55 56 72".split()))
+PLACE_KIND = re.compile(r"\s+(city and borough|consolidated government|metropolitan government|metro government|unified government|urban county|"
+                        r"city|town|village|borough|CDP|municipality|comunidad|zona urbana|plantation|township)$")
 # National Risk Index hazards, in the order the map's codes refer to them.
 HAZARDS = ["HRCN", "CFLD", "IFLD", "WFIR", "TRND", "HAIL", "SWND", "ERQK", "WNTW", "HWAV", "CWAV", "LNDS", "LTNG", "ISTM", "AVLN", "TSUN", "VLCN"]
 # County outlines are pinned to one release and checked, since they're published to every visitor as-is.
@@ -371,6 +378,42 @@ def read_aptlist(cache):
     return out, month
 
 
+def read_places(year, cache):
+    """Census places (incorporated cities and towns, and unincorporated communities): GEOID -> (name, state)."""
+    path = fetch(GAZ_PLACE_URL.format(y=year), cache, f"gaz{year}_place.zip")
+    out = {}
+    with zipfile.ZipFile(path) as z:
+        with z.open(z.namelist()[0]) as raw:
+            rows = csv.reader(io.TextIOWrapper(raw, encoding="latin-1"), delimiter="\t")
+            head = [h.strip() for h in next(rows)]
+            g, n, st = (head.index(k) for k in ("GEOID", "NAME", "USPS"))
+            for r in rows:
+                name = re.sub(r"\s*\(balance\)$", "", r[n].strip())
+                out[r[g].strip()] = (PLACE_KIND.sub("", name), r[st].strip())
+    return out
+
+
+def read_tract_places(cache):
+    """The place most of each tract's blocks fall in, from the Census 2020 block assignment files, when that's at least
+    a quarter of them (otherwise the tract is mostly unincorporated)."""
+    out = {}
+    for st, fips in STATE_FIPS.items():
+        path = fetch(BAF_URL.format(fips=fips, st=st.upper()), cache, f"baf2020-{st}.zip")
+        tally = {}
+        with zipfile.ZipFile(path) as z:
+            with z.open(next(n for n in z.namelist() if n.endswith("_INCPLACE_CDP.txt"))) as raw:
+                for line in io.TextIOWrapper(raw, encoding="latin-1"):
+                    block, _, place = line.strip().partition("|")
+                    if block[:1].isdigit():
+                        t = tally.setdefault(block[:11], {})
+                        t[place] = t.get(place, 0) + 1
+        for tract, c in tally.items():
+            place, n = max(((p, k) for p, k in c.items() if p), key=lambda x: x[1], default=(None, 0))
+            if place and n * 4 >= sum(c.values()):
+                out[tract] = fips + place
+    return out
+
+
 def read_cbsa(cache):
     """County -> (metro or micro area code, its title)."""
     path = fetch(CBSA_URL, cache, "cbsa2fipsxw_2023.csv")
@@ -420,6 +463,8 @@ def main():
     rdc_c, _ = read_rdc(a.cache, "County", "county_fips")
     apt, apt_m = read_aptlist(a.cache)
     cbsa = read_cbsa(a.cache)
+    print("Places…", file=sys.stderr)
+    places, tract_place = read_places(a.gaz, a.cache), read_tract_places(a.cache)
     atlas = fetch(ATLAS_URL, a.cache, "us-atlas-3.0.1-counties-10m.json")
     with open(atlas, "rb") as f:
         if hashlib.sha256(f.read()).hexdigest() != ATLAS_SHA256:
@@ -433,11 +478,13 @@ def main():
     # jobs: jobs located in the tract. risk: FEMA risk score; lossr: expected annual building losses per $1M of
     # building value; haz: index into HAZARDS of the costliest hazard.
     cty_list, cty_idx = [], {}
-    cols = {k: [] for k in ["c", "lat", "lon", "area_k"] + ORDER + ["jobs", "risk", "lossr", "haz"]}
+    cols = {k: [] for k in ["c", "lat", "lon", "area_k"] + ORDER + ["jobs", "risk", "lossr", "haz", "pl"]}
+    place_list, place_idx = [], {}
     missing = 0
     # LODES still codes Connecticut tracts under the old counties; the tract numbers match the planning-region codes.
     ct = {t[5:]: v for t, v in lodes.items() if t.startswith("09")}
     jobs_at = lambda gid: lodes.get(gid, ct.get(gid[5:]) if gid.startswith("09") else None)
+    ct_place = {t[5:]: v for t, v in tract_place.items() if t.startswith("09")}   # the same for the 2020 block files
     for gid, rec in sorted(acs_t.items()):
         pt = gaz.get(gid)
         if not pt or not (rec.get("pop") or jobs_at(gid)):   # job centers with no residents still count for jobs
@@ -459,8 +506,14 @@ def main():
         cols["risk"].append(ival(n.get("risk")))
         cols["lossr"].append(n.get("lossr"))
         cols["haz"].append(n.get("haz"))
+        pg = tract_place.get(gid) or (ct_place.get(gid[5:]) if gid.startswith("09") else None)
+        if pg in places and pg not in place_idx:
+            place_idx[pg] = len(place_list)
+            place_list.append(list(places[pg]))
+        cols["pl"].append(place_idx.get(pg))
     rows = cols["c"]
-    tracts = {"acs": f"{a.acs - 4}–{a.acs}", "n": len(rows), "counties": cty_list, "cols": cols}
+    # pl: index into places, the [name, state] of the city, town or community the tract is mostly in.
+    tracts = {"acs": f"{a.acs - 4}–{a.acs}", "n": len(rows), "counties": cty_list, "places": place_list, "cols": cols}
 
     counties = {}
     for fips in sorted(set(acs_c) | set(pep)):

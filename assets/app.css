@@ -448,7 +448,7 @@ details.add .field { margin-bottom: 10px; }
 /* ---------- Print: the site report only ---------- */
 @media print {
   body { display: block; height: auto; overflow: visible; background: #fff; }
-  .top, .panel, #map, .maptools, .legendcard, .overlay, .toast, .tour, .rp-actions, .rp-head .icon-btn { display: none !important; }
+  .top, .panel, #map, .maptools, .legendcard, .overlay, .toast, .tour, .rp-actions, .rp-head .icon-btn, .ta-seg button:not([aria-pressed="true"]) { display: none !important; }
   .app, .mapwrap { display: block; }
   .report { position: static; width: auto; border: 0; box-shadow: none; overflow: visible; animation: none; }
   .rp-head { position: static; }
@@ -464,3 +464,10 @@ details.add .field { margin-bottom: 10px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.ta-seg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 10px; font-size: 12px; color: var(--muted); }
+.ta-seg span { margin-right: 2px; }
+.ta-seg button {
+  border: 1px solid var(--line); background: var(--raise); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2);
+}
+.ta-seg button:hover { border-color: var(--muted); color: var(--ink); }
+.ta-seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }

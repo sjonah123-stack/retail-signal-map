@@ -255,7 +255,7 @@ let minEarly = 4, maxLate = 0, lateRadius = 10;
 let reportAt = null;              // {lat, lon, label}
 // Market data
 let counties = [], countyIdx = new Map(), cdata = new Map(), marketMeta = null;
-let tracts = [], tractBuckets = new Map();
+let tracts = [], tractBuckets = new Map(), tractPlaces = [];   // tractPlaces: [name, state] of Census places
 let zips = [], zipBuckets = new Map();
 const market = { counties: false, tracts: false, zips: false, error: false };
 // Sites pinned for side-by-side comparison, and the uploaded deal list.
@@ -628,7 +628,8 @@ function setChanges(j) {
   if (cells.length) rescore();
 }
 // Openings and closings within R miles, nearest first.
-function changesNear(lat, lon, R = radius) {
+function changesNear(lat, lon, R = radius, area = null) {
+  if (area) return changesNear(lat, lon, area.reach).filter(x => inArea(area, x.lat, x.lon));
   const out = [], span = R / 69 + 0.05;
   for (let bi = Math.floor((lat - span) / SB); bi <= Math.floor((lat + span) / SB); bi++)
     for (let bj = Math.floor((lon - span * 1.6) / SB); bj <= Math.floor((lon + span * 1.6) / SB); bj++)
@@ -693,7 +694,17 @@ function nearbyStores(lat, lon, spanDeg) {
   return out;
 }
 
+// The city, town or community (Census place) the nearest neighborhood is mostly in, plus the city most nearby stores
+// give as their address when that's different (so "Kensington Park, FL · Sarasota area"). Outside any place, or before
+// the neighborhoods load, just the store address city.
 function placeLabel(lat, lon) {
+  const t = tractPlaces.length ? nearestTract(lat, lon, 3) : null;
+  const pl = t?.pl != null ? tractPlaces[t.pl] : null, near = storeCity(lat, lon);
+  if (!pl) return near || countyAt(lat, lon)?.d?.name || `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+  const [name, st] = pl, city = near?.endsWith(", " + st) ? near.slice(0, -4) : null;
+  return city && city.toLowerCase() !== name.toLowerCase() ? `${name}, ${st} · ${city} area` : `${name}, ${st}`;
+}
+function storeCity(lat, lon) {
   const tally = new Map();
   for (const s of nearbyStores(lat, lon, 0.5)) {
     if (!s.city || distMi(lat, lon, s.lat, s.lon) > Math.max(3, radius)) continue;
@@ -702,9 +713,7 @@ function placeLabel(lat, lon) {
   }
   let best = null, n = 0;
   for (const [k, v] of tally) if (v > n) { best = k; n = v; }
-  if (best) return best;
-  const c = countyAt(lat, lon);
-  return c?.d?.name || `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+  return best;
 }
 
 // ================= Market data (Census, Zillow) =================
@@ -794,8 +803,9 @@ function setTracts(j) {
       vfr: c.vfr[i], vrno: c.vrno[i], units: c.units[i], mf5n: c.mf5n[i], yb: c.yb[i],
       tax: c.tax?.[i], jobs: c.jobs?.[i], risk: c.risk?.[i], lossr: c.lossr?.[i], haz: c.haz?.[i] };
     const area = c.area_k[i] * 1000;
-    list[i] = { lat: c.lat[i] / 1e4, lon: c.lon[i] / 1e4, area, c: j.counties[c.c[i]], d, m: derive(d, area) };
+    list[i] = { lat: c.lat[i] / 1e4, lon: c.lon[i] / 1e4, area, c: j.counties[c.c[i]], d, m: derive(d, area), pl: c.pl?.[i] ?? null };
   }
+  tractPlaces = j.places || [];
   tracts = list.sort((a, b) => b.area - a.area);   // big tracts first so small ones draw on top
   for (const t of tracts) t.rm = Math.sqrt(t.area / Math.PI);
   tractBuckets = new Map();
@@ -865,18 +875,19 @@ function countyAt(lat, lon) {
 
 // Combines neighborhoods whose center sits within R miles. Medians can't be combined exactly, so these are
 // household-weighted averages of each neighborhood's median.
-function tradeArea(lat, lon, R) {
+// zone: a drive-time area to use instead of the R-mile circle (tracts count when their center is inside it).
+function tradeArea(lat, lon, R, zone = null) {
   if (!tracts.length) return null;
-  const key = Math.round(lat * 40) + ":" + Math.round(lon * 40) + ":" + R;
+  const key = zone ? zone.key : Math.round(lat * 40) + ":" + Math.round(lon * 40) + ":" + R;
   if (taCache.has(key)) return taCache.get(key);
   let n = 0, pop = 0, area = 0, incW = 0, incH = 0, hvW = 0, hvO = 0, rentW = 0, rentR = 0, ed = 0, bachN = 0, occ = 0, rnt = 0,
     vfr = 0, vrno = 0, units = 0, mf5n = 0, ybW = 0, ybU = 0, jobs = 0, jobsN = 0, taxW = 0, taxO = 0, riskW = 0, lossW = 0, riskH = 0;
   const hazW = new Map();
-  const span = R / 69 + 0.05;
+  const span = (zone ? zone.reach : R) / 69 + 0.05;
   for (let bi = Math.floor((lat - span) / SB); bi <= Math.floor((lat + span) / SB); bi++)
     for (let bj = Math.floor((lon - span * 1.6) / SB); bj <= Math.floor((lon + span * 1.6) / SB); bj++) {
       for (const t of tractBuckets.get(bucketKey(bi, bj)) || []) {
-        if (Math.abs(t.lat - lat) > span || distMi(lat, lon, t.lat, t.lon) > R) continue;
+        if (zone ? !inArea(zone, t.lat, t.lon) : Math.abs(t.lat - lat) > span || distMi(lat, lon, t.lat, t.lon) > R) continue;
         const x = t.d; n++;
         pop += x.pop || 0; area += t.area;
         if (x.inc && x.occ) { incW += x.inc * x.occ; incH += x.occ; }
@@ -1284,8 +1295,52 @@ function drawSite() {
   siteLayer.clearLayers();
   if (!reportAt) return;
   const ink = dark || basemap === "satellite" ? "#ffffff" : "#111110";
-  L.circle([reportAt.lat, reportAt.lon], { pane: "site", radius: radius * 1609.34, color: ink, weight: 1.5, opacity: 0.8, dashArray: "5 5", fill: true, fillColor: ink, fillOpacity: 0.04, interactive: false }).addTo(siteLayer);
+  const style = { pane: "site", color: ink, weight: 1.5, opacity: 0.8, dashArray: "5 5", fill: true, fillColor: ink, fillOpacity: 0.04, interactive: false };
+  const area = reportArea();
+  if (area) L.polygon(area.latlngs, style).addTo(siteLayer);
+  else L.circle([reportAt.lat, reportAt.lon], { ...style, radius: radius * 1609.34 }).addTo(siteLayer);
   L.circleMarker([reportAt.lat, reportAt.lon], { pane: "site", radius: 6.5, color: "#ffffff", weight: 2.5, fillColor: "#2a78d6", fillOpacity: 1, interactive: false }).addTo(siteLayer);
+}
+// ---------- Drive-time trade areas (site reports) ----------
+// Areas reachable by car in 10 or 20 minutes, from the FOSSGIS public Valhalla server (OpenStreetMap roads, no
+// traffic). It's for light use, so each spot and time is asked for once and kept for the session.
+const VALHALLA = "https://valhalla1.openstreetmap.de/isochrone";
+const DRIVE_TIMES = [10, 20];
+let taMode = 0;                  // 0: the radius circle; otherwise minutes of driving
+const isoCache = new Map();      // isoKey -> area, "loading", or null when it failed
+const isoKey = (lat, lon, min) => `${lat.toFixed(4)},${lon.toFixed(4)},${min}`;
+function reportArea() {
+  const a = taMode && reportAt ? isoCache.get(isoKey(reportAt.lat, reportAt.lon, taMode)) : null;
+  return a && a !== "loading" ? a : null;
+}
+async function loadIso(lat, lon, min) {
+  const k = isoKey(lat, lon, min);
+  isoCache.set(k, "loading");
+  try {
+    const q = { locations: [{ lat, lon }], costing: "auto", contours: [{ time: min }], polygons: true, denoise: 0.5, generalize: 120 };
+    const r = await fetch(`${VALHALLA}?json=${encodeURIComponent(JSON.stringify(q))}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const g = (await r.json()).features?.[0]?.geometry;
+    const polys = g?.type === "Polygon" ? [g.coordinates] : g?.type === "MultiPolygon" ? g.coordinates : null;
+    if (!polys?.length) throw new Error("No drive-time area came back");
+    // Rings are [lon, lat]. The bounding box and reach (farthest edge) let lookups skip everything outside.
+    let x0 = 180, y0 = 90, x1 = -180, y1 = -90, reach = 0;
+    for (const p of polys) for (const [x, y] of p[0]) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      reach = Math.max(reach, distMi(lat, lon, y, x));
+    }
+    isoCache.set(k, { key: "iso:" + k, min, polys, bbox: [x0, y0, x1, y1], reach: Math.min(reach, 60),
+      latlngs: polys.map(p => p.map(ring => ring.map(([x, y]) => [y, x]))) });
+  } catch (e) {
+    console.warn(e);
+    isoCache.set(k, null);
+  }
+  if (reportAt && isoKey(reportAt.lat, reportAt.lon, taMode) === k) { renderReport(); drawSite(); }
+}
+function inArea(a, lat, lon) {
+  const [x0, y0, x1, y1] = a.bbox;
+  return lon >= x0 && lon <= x1 && lat >= y0 && lat <= y1 && inPolys(lon, lat, a.polys);
 }
 function closeReport() {
   reportAt = null; siteLayer.clearLayers();
@@ -1311,21 +1366,22 @@ const KPI = {
   risk: ["Hazard risk score", ta => ta.risk != null ? `${Math.round(ta.risk)} of 100` : "–"],
 };
 // The score at an exact point: closest store of each signal, and how many tracked stores sit within the radius.
-function scoreAt(lat, lon) {
-  const near = GROUPS.map(() => null);
+// With a drive-time area, a signal counts when any of its stores is inside it; near still holds the closest store.
+function scoreAt(lat, lon, area = null) {
+  const near = GROUPS.map(() => null), inside = GROUPS.map(() => null);
   let within = 0;
   for (const s of nearbyStores(lat, lon, 1)) {
-    const d = distMi(lat, lon, s.lat, s.lon);
-    if (d <= radius) within++;
+    const d = distMi(lat, lon, s.lat, s.lon), ins = area ? inArea(area, s.lat, s.lon) : d <= radius;
+    if (ins) { within++; if (!inside[s.g] || d < inside[s.g].d) inside[s.g] = { d, s }; }
     const cur = near[s.g];
     if (!cur || d < cur.d) near[s.g] = { d, s };
   }
   const frontier = viewMode === "frontier";
   let score = 0;
-  near.forEach((n, g) => { if (n && n.d <= radius) score += frontier ? (roles[g] === "early" ? 1 : 0) : weights[g]; });
+  inside.forEach((n, g) => { if (n) score += frontier ? (roles[g] === "early" ? 1 : 0) : weights[g]; });
   const lateNear = GROUPS.map((g, i) => roles[i] === "late" && near[i] && near[i].d <= lateRadius ? `${g.name} (${near[i].d.toFixed(1)} mi)` : null).filter(Boolean);
   const qualifies = frontier && score >= minEarly && lateNear.length <= maxLate;
-  return { near, within, score, frontier, lateNear, qualifies };
+  return { near, inside, within, score, frontier, lateNear, qualifies };
 }
 const shareLabel = s => s == null ? "" : s < 1 ? "Top 1% of scored US areas" : s <= 50 ? `Top ${Math.ceil(s)}% of scored US areas` : "Below the median scored area";
 const chg = v => `<span class="${tone(v)}">${pct(v)}</span>`;
@@ -1361,14 +1417,22 @@ function costRows(ta, cd) {
 function renderReport() {
   if (!reportAt) return;
   const { lat, lon } = reportAt;
-  const { near, within, score, frontier, lateNear, qualifies } = scoreAt(lat, lon);
+  // A drive-time trade area replaces the circle in this report once it has loaded.
+  const isoK = taMode ? isoKey(lat, lon, taMode) : null;
+  if (isoK && !isoCache.has(isoK)) loadIso(lat, lon, taMode);
+  const iso = isoK ? isoCache.get(isoK) : null, area = iso && iso !== "loading" ? iso : null;
+  const where = area ? `a ${area.min}-minute drive` : `${radius} mi`;
+  const isoNote = !taMode ? "" : iso === "loading" ? `Loading the ${taMode}-minute drive area…`
+    : !iso ? `The ${taMode}-minute drive area didn't load, so this uses the ${radius} mi circle.`
+    : `Drive time on OpenStreetMap roads without traffic (Valhalla). Map shading, Top areas and comparisons still use the ${radius} mi circle.`;
+  const { near, inside, within, score, frontier, lateNear, qualifies } = scoreAt(lat, lon, area);
 
   const rowsIn = [], rowsOut = [];
   GROUPS.forEach((g, gi) => {
     if (frontier ? roles[gi] === "none" : weights[gi] === 0) return;
-    const n = near[gi];
+    const n = inside[gi] || near[gi];
     const close = n && n.d <= 50;
-    const inR = n && n.d <= radius;
+    const inR = !!inside[gi];
     const tag = frontier ? `<span class="w">${roles[gi]}</span>` : weights[gi] > 1 ? `<span class="w">${weights[gi]}×</span>` : "";
     const extra = close && n.s.extra ? ` <span class="tag">${n.s.up.status === "opened" ? "just opened" : "announced"}</span>` : "";
     const where = close ? `${escapeHtml(n.s.b)}${n.s.city ? ", " + escapeHtml(n.s.city) : ""}` : "None within 50 mi";
@@ -1386,22 +1450,25 @@ function renderReport() {
       <span class="cd">~${d.toFixed(0)} mi</span>
       ${u.src && safeUrl(u.src.url) ? `<a class="go" href="${escapeHtml(u.src.url)}" target="_blank" rel="noopener" aria-label="Source" title="Source">${ICON_EXT}</a>` : "<span></span>"}</li>`).join("");
 
-  const ta = tradeArea(lat, lon, radius);
+  const ta = tradeArea(lat, lon, radius, area);
   const cty = countyAt(lat, lon), cd = cty?.d;
   const f = maxW ? score / maxW : 0;
-  const shareTxt = shareLabel(frontier ? null : topShare(score));
-  const title = frontier ? `${score} of ${maxW} early movers within ${radius} mi` : `${score} of ${maxW} signal points within ${radius} mi`;
+  const shareTxt = shareLabel(frontier || area ? null : topShare(score));   // national ranks are for the circle
+  const title = frontier ? `${score} of ${maxW} early movers within ${where}` : `${score} of ${maxW} signal points within ${where}`;
   const place = reportAt.label || placeLabel(lat, lon);
   const sub = [cd?.name, cd?.metro ? cd.metro + " metro" : null].filter(Boolean).map(escapeHtml).join(" · ") || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
   const kpiKeys = LENS_KPIS[lens] || LENS_KPIS.retail;
   const kpis = ta ? `<div class="kpis">${kpiKeys.map((k, i) => `<div class="kpi${i < 3 ? " lead" : ""}"><b>${KPI[k][1](ta)}</b><span>${KPI[k][0]}</span></div>`).join("")}</div>
-      <p class="rp-fine">${fmt(ta.n)} census tracts centered within ${radius} mi. Household-weighted averages of tract medians, ACS ${escapeHtml(marketMeta?.acs || "")}.</p>`
+      <p class="rp-fine">${fmt(ta.n)} census tracts centered within ${where}. Household-weighted averages of tract medians, ACS ${escapeHtml(marketMeta?.acs || "")}.</p>`
     : `<p class="rp-fine">${market.error ? "Neighborhood data didn't load." : market.tracts ? "No census tracts centered within this radius." : "Loading neighborhood data…"}</p>`;
 
   const dl = rows => `<dl class="mkt">${rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`;
   const zp = zipAt(lat, lon);
-  const mom = frontier ? null : momentum({ ...marketOf(cd, zp), opens: changesMeta ? openingsNear(lat, lon) : null });
+  // Stores the tracked chains opened or closed nearby in the last year, as found by comparing All the Places runs.
+  const ch = changesMeta ? changesNear(lat, lon, radius, area) : [];
+  const opens = changesMeta ? ch.filter(x => x.k === "o" && countsOpening(x.g)).length : null;
+  const mom = frontier ? null : momentum({ ...marketOf(cd, zp), opens });
   const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}${x.inv ? " (less new supply ranks higher)" : ""}`).join(", ")}. Overall is half the signal score and half momentum.</div>` : "";
   const zipRows = [];
   if (zp?.zori) zipRows.push([`Typical rent (${monthName(marketMeta?.zori)})`, dollars(zp.zori), `${chg(zp.zori1)} 1 yr · ${chg(zp.zori3)} 3 yr`]);
@@ -1426,15 +1493,13 @@ function renderReport() {
   const mkt = mktRows.length ? dl(mktRows)
     : `<p class="rp-fine">${market.counties ? "No county figures for this spot." : market.error ? "County data didn't load." : "Loading county data…"}</p>`;
   const costs = costRows(ta, cd);
-  // Stores the tracked chains opened or closed nearby in the last year, as found by comparing All the Places runs.
-  const ch = changesMeta ? changesNear(lat, lon) : [];
   const chRow = x => `<li><span class="sw" style="background:${GROUPS[x.g].color}"></span>
       <span class="cn"><b>${escapeHtml(x.b)}</b><span class="w">${x.k === "o" ? "opened" : "closed"}</span><small>${escapeHtml(x.place || "")}${x.place ? " · " : ""}between ${monthName(x.since.slice(0, 7))} and ${monthName(x.d.slice(0, 7))}</small></span>
       <span class="cd">${x.dist.toFixed(1)} mi</span>
       <a class="go" href="${gmapsStore({ b: x.b, lat: x.lat, lon: x.lon })}" target="_blank" rel="noopener" aria-label="${escapeHtml(x.b)} on Google Maps" title="Check on Google Maps">${ICON_EXT}</a></li>`;
-  const chBox = !changesMeta ? "" : `<h3 class="rp-h">Openings and closings <span>within ${radius} mi · past 12 months</span></h3>${ch.length
+  const chBox = !changesMeta ? "" : `<h3 class="rp-h">Openings and closings <span>within ${where} · past 12 months</span></h3>${ch.length
     ? `<ul class="chains">${ch.slice(0, 12).map(chRow).join("")}</ul>${ch.length > 12 ? `<p class="rp-fine">And ${ch.length - 12} more.</p>` : ""}`
-    : `<p class="rp-fine">None of the tracked chains opened or closed a store within ${radius} mi between ${monthName(changesMeta.since.slice(0, 7))} and ${monthName(changesMeta.updated.slice(0, 7))}.</p>`}`;
+    : `<p class="rp-fine">None of the tracked chains opened or closed a store within ${where} between ${monthName(changesMeta.since.slice(0, 7))} and ${monthName(changesMeta.updated.slice(0, 7))}.</p>`}`;
   const pinned = compareIndex(lat, lon) >= 0;
 
   const fline = frontier ? `<div class="verdict${qualifies ? " yes" : ""}"><b>${qualifies ? "Frontier area" : "Not a frontier area"}</b>${lateNear.length ? `Late anchors within ${lateRadius} mi: ${escapeHtml(lateNear.join(", "))}.` : `No late anchors within ${lateRadius} mi.`} Needs ${minEarly}+ early movers and at most ${maxLate} late ${maxLate === 1 ? "anchor" : "anchors"}.</div>` : "";
@@ -1450,15 +1515,18 @@ function renderReport() {
         <div class="dial" style="--f:${f.toFixed(3)};--c:${score ? stepColor(f) : "var(--chip)"}"><b>${score}<small>of ${maxW}</small></b></div>
         <div><p class="t">${title}</p><p class="s">${[shareTxt, `${fmt(within)} tracked stores nearby`].filter(Boolean).join(" · ")}</p></div>
       </div>
+      <div class="ta-seg" role="group" aria-label="Trade area"><span>Trade area</span>${[0, ...DRIVE_TIMES].map(m =>
+        `<button type="button" data-ta="${m}" aria-pressed="${m === taMode}">${m ? `${m}-min drive` : `${radius} mi`}</button>`).join("")}</div>
+      ${isoNote ? `<p class="rp-fine">${isoNote}</p>` : ""}
       ${fline}${mline}
-      <h3 class="rp-h">Trade area <span>within ${radius} mi${ta ? ` · ${big(ta.pop)} people` : ""}</span></h3>
+      <h3 class="rp-h">Trade area <span>within ${where}${ta ? ` · ${big(ta.pop)} people` : ""}</span></h3>
       ${kpis}
       ${zipBox}
       <h3 class="rp-h">County market${cd?.name ? ` <span>${escapeHtml(cd.name.split(",")[0])}</span>` : ""}</h3>
       ${mkt}
       ${costs.length ? `<h3 class="rp-h">Costs and risk</h3>${dl(costs)}` : ""}
       ${chBox}
-      ${rowsIn.length ? `<h3 class="rp-h">Within ${radius} mi <span>${rowsIn.length} ${frontier ? "chains" : "signals"}</span></h3><ul class="chains">${rowsIn.map(r => r[1]).join("")}</ul>` : ""}
+      ${rowsIn.length ? `<h3 class="rp-h">Within ${where} <span>${rowsIn.length} ${frontier ? "chains" : "signals"}</span></h3><ul class="chains">${rowsIn.map(r => r[1]).join("")}</ul>` : ""}
       ${upRows ? `<h3 class="rp-h">Announced nearby <span>approximate</span></h3><ul class="chains">${upRows}</ul>` : ""}
       ${rowsOut.length ? `<h3 class="rp-h">Missing nearby <span>closest location</span></h3><ul class="chains">${rowsOut.map(r => r[1]).join("")}</ul>` : ""}
       <div class="rp-actions">
@@ -1474,6 +1542,7 @@ $("report").addEventListener("click", e => {
   if (act === "close") closeReport();
   else if (act === "copy") copyLink();
   else if (act === "print") window.print();
+  else if (e.target.closest("[data-ta]")) { taMode = +e.target.closest("[data-ta]").dataset.ta; renderReport(); drawSite(); syncUrl(); }
   else if (act === "cmp" && reportAt) toggleCompare(reportAt.lat, reportAt.lon, reportAt.label || placeLabel(reportAt.lat, reportAt.lon));
 });
 map.on("click", e => openReport(e.latlng.lat, e.latlng.lng));
@@ -2024,6 +2093,7 @@ function writeUrl() {
   if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe, filt.empg, filt.risk].join("_"));
   if (sortBy !== (L0.sort || "score")) p.set("sort", sortBy);
   if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}`);
+  if (taMode) p.set("ta", taMode);
   if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
 }
@@ -2040,6 +2110,7 @@ function readUrl() {
   if (r && /^[eln]+$/.test(r)) roles = GROUPS.map((g, i) => i < r.length ? { e: "early", l: "late", n: "none" }[r[i]] : roles[i]);
   // Anything a link leaves out goes back to its default, so a second link applied in place doesn't inherit the first's.
   minEarly = 4; maxLate = 0; lateRadius = 10;
+  taMode = DRIVE_TIMES.includes(+p.get("ta")) ? +p.get("ta") : 0;
   const fr = p.get("fr");
   if (fr) { const [a, b, c] = fr.split(".").map(Number); minEarly = num(a, 1, 30, minEarly); maxLate = num(b, 0, 30, maxLate); lateRadius = num(c, 3, 25, lateRadius); }
   const f = p.get("f");
