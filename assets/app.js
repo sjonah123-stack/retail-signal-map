@@ -1282,9 +1282,20 @@ map.on("moveend", () => { syncUrl(); if ($("inView").checked) { clearTimeout(mov
 
 // ================= Site report =================
 const siteLayer = L.layerGroup().addTo(map);
-function openReport(lat, lon, label) {
+// Centers the map on a spot in the part of the map the report panel doesn't cover (it covers the right side on wide
+// screens and the bottom on narrow ones), so a pinned address isn't hidden behind its own report.
+function flyToSpot(lat, lon, zoom) {
+  const el = $("report"), m = $("map").getBoundingClientRect();
+  if (el.hidden) { map.flyTo([lat, lon], zoom, { duration: 0.8 }); return; }
+  const r = el.getBoundingClientRect(), wide = r.width < m.width * 0.8;
+  const dx = wide ? (r.width + 12) / 2 : 0, dy = wide ? 0 : r.height / 2;
+  const target = map.unproject(map.project([lat, lon], zoom).add([dx, dy]), zoom);
+  map.flyTo(target, zoom, { duration: 0.8 });
+}
+// pin: the spot is an exact address or coordinates the visitor typed, so it's marked with a pin rather than a dot.
+function openReport(lat, lon, label, pin = false) {
   if (!stores.length) return;
-  reportAt = { lat, lon, label: label || null };
+  reportAt = { lat, lon, label: label || null, pin };
   drawSite();
   renderReport();
   const el = $("report");
@@ -1299,7 +1310,12 @@ function drawSite() {
   const area = reportArea();
   if (area) L.polygon(area.latlngs, style).addTo(siteLayer);
   else L.circle([reportAt.lat, reportAt.lon], { ...style, radius: radius * 1609.34 }).addTo(siteLayer);
-  L.circleMarker([reportAt.lat, reportAt.lon], { pane: "site", radius: 6.5, color: "#ffffff", weight: 2.5, fillColor: "#2a78d6", fillOpacity: 1, interactive: false }).addTo(siteLayer);
+  if (reportAt.pin) {
+    const pin = L.marker([reportAt.lat, reportAt.lon], { pane: "site", interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "addr-pin", html: '<svg viewBox="0 0 24 32" aria-hidden="true"><path d="M12 31s10-11.4 10-19A10 10 0 0 0 2 12c0 7.6 10 19 10 19Z"/><circle cx="12" cy="12" r="4"/></svg>', iconSize: [24, 32], iconAnchor: [12, 31] }) });
+    if (reportAt.label) pin.bindTooltip(reportAt.label, { permanent: true, direction: "top", offset: [0, -30], className: "addr-tip", interactive: false });
+    pin.addTo(siteLayer);
+  } else L.circleMarker([reportAt.lat, reportAt.lon], { pane: "site", radius: 6.5, color: "#ffffff", weight: 2.5, fillColor: "#2a78d6", fillOpacity: 1, interactive: false }).addTo(siteLayer);
 }
 // ---------- Drive-time trade areas (site reports) ----------
 // Areas reachable by car in 10 or 20 minutes, from the FOSSGIS public Valhalla server (OpenStreetMap roads, no
@@ -2040,15 +2056,19 @@ function showTab(name) {
 document.querySelectorAll(".tabs [role=tab]").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
 // ================= Search =================
+// A query that starts with a house number is a street address: of the geocoder's matches, the one with a house
+// number is the building itself (exact), where a street or neighborhood match would only be the general area.
 async function geocode(q) {
-  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&limit=1&q=${encodeURIComponent(q)}`);
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&limit=5&q=${encodeURIComponent(q)}`);
   const j = await r.json();
   if (!j.length) return null;
-  const a = j[0].address || {};
+  const wantsAddress = /^\s*\d+[a-z]?\s+\S/i.test(q);
+  const hit = (wantsAddress && j.find(x => x.address?.house_number)) || j[0];
+  const a = hit.address || {};
   const street = [a.house_number, a.road].filter(Boolean).join(" ");
   const town = a.city || a.town || a.village || a.hamlet || a.suburb || "";
-  const label = [street || j[0].name, town].filter(Boolean).join(", ") || j[0].display_name.split(",").slice(0, 2).join(",");
-  return { lat: +j[0].lat, lon: +j[0].lon, bb: j[0].boundingbox.map(Number), label };
+  const label = [street || hit.name, town].filter(Boolean).join(", ") || hit.display_name.split(",").slice(0, 2).join(",");
+  return { lat: +hit.lat, lon: +hit.lon, bb: hit.boundingbox.map(Number), label, exact: !!a.house_number };
 }
 async function goPlace(e) {
   e?.preventDefault();
@@ -2057,16 +2077,19 @@ async function goPlace(e) {
   if (ll) {
     const lat = +ll[1], lon = +ll[2];
     if (!inUS(lat, lon)) { toast("Those coordinates aren't in the US. Use latitude, longitude, like 33.08, -96.83.", true); return; }
-    map.flyTo([lat, lon], 12, { duration: 0.8 }); openReport(lat, lon); return;
+    openReport(lat, lon, null, true); flyToSpot(lat, lon, Math.max(map.getZoom(), 14)); return;
   }
   try {
     const r = await geocode(q);
     if (!r) { toast(`No match for “${q}”. Try adding the state.`, true); return; }
     const [s, n, w, ea] = r.bb;
     const small = (n - s) < 0.08 && (ea - w) < 0.08;
-    if (small) {
-      map.flyTo([r.lat, r.lon], 13, { duration: 0.8 });
+    if (r.exact) {   // a street address: drop a pin on the building and open its report
+      openReport(r.lat, r.lon, r.label, true);
+      flyToSpot(r.lat, r.lon, Math.max(map.getZoom(), 15));
+    } else if (small) {
       openReport(r.lat, r.lon, r.label);
+      flyToSpot(r.lat, r.lon, 13);
     } else map.flyToBounds([[s, w], [n, ea]], { maxZoom: 12, duration: 0.8 });
     $("place").blur();
   } catch (err) { toast("Place search needs an internet connection.", true); }
@@ -2092,7 +2115,7 @@ function writeUrl() {
   }
   if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe, filt.empg, filt.risk].join("_"));
   if (sortBy !== (L0.sort || "score")) p.set("sort", sortBy);
-  if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}`);
+  if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}${reportAt.pin ? "," + encodeURIComponent(reportAt.label || "") : ""}`);
   if (taMode) p.set("ta", taMode);
   if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
@@ -2135,8 +2158,11 @@ function readUrl() {
   }
   setView(viewMode);   // re-renders with everything above
   renderLens();
-  const at = (p.get("at") || "").split(",").map(Number);
-  return at.length === 2 && inUS(at[0], at[1]) ? { lat: at[0], lon: at[1] } : null;
+  const [la, lo, ...rest] = (p.get("at") || "").split(",");
+  if (!inUS(+la, +lo)) return null;
+  let label = rest.join(",");
+  try { label = decodeURIComponent(label); } catch (e) { /* not encoded; keep as typed */ }
+  return { lat: +la, lon: +lo, pin: rest.length > 0, label: str(label, 80) || null };
 }
 async function copyLink() {
   writeUrl();
@@ -2154,7 +2180,7 @@ window.addEventListener("hashchange", () => {
   if (stores.length && radius !== prevRadius) refreshAll();
   setColorBy(colorBy);
   if (stores.length) afterCompareChange();
-  if (at) openReport(at.lat, at.lon);
+  if (at) openReport(at.lat, at.lon, at.label, at.pin);
   else if (reportAt) closeReport();
   if (cmpOpen && !compare.length) closeCompare();
 });
@@ -2847,7 +2873,7 @@ async function start() {
     refreshAll(); renderUpcoming(); renderSources();
     $("overlay").hidden = true;
     if (compare.length) afterCompareChange();
-    if (at) openReport(at.lat, at.lon);
+    if (at) openReport(at.lat, at.lon, at.label, at.pin);
     // First visit: offer the tour, unless a shared link brought them to a specific report or comparison.
     else if (!compare.length && !local.get(TOUR_KEY)) setTimeout(startTour, 400);
   } catch (e) {

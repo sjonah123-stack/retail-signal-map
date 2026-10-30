@@ -471,3 +471,7 @@ details.add .field { margin-bottom: 10px; }
 }
 .ta-seg button:hover { border-color: var(--muted); color: var(--ink); }
 .ta-seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.addr-pin svg { width: 24px; height: 32px; fill: #2a78d6; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)); }
+.addr-pin svg circle { fill: #fff; stroke: none; }
+.addr-tip { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); font: 600 12px/1.2 var(--font); padding: 4px 8px; }
+.addr-tip::before { border-top-color: var(--line); }
