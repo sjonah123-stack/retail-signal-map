@@ -7,24 +7,24 @@
 // sel: OpenStreetMap feature filter. re: regex matched against brand and name (case-insensitive unless ci:false).
 // ref: most recent reported US count found in public sources, used only to show coverage.
 const GROUPS = [
-  { name: "Chick-fil-A", cat: "food", color: "#e15759", brands: [
+  { name: "Chick-fil-A", cat: "food", color: "#e15759", why: "Within 5 miles of most suburbs, so it does little to tell them apart. Among single-family areas, the ones without it are usually newer and growing faster.", brands: [
     { name: "Chick-fil-A", sel: '["amenity"="fast_food"]', re: "^Chick-fil-A", ref: 3300, src: "About 3,290 US restaurants at end of 2025 (QSR 50). Excludes ~425 licensed airport and campus units." }] },
   { name: "Costco", cat: "shopping", color: "#4e79a7", brands: [
     { name: "Costco", sel: '["shop"]', re: "^Costco", ref: 641, src: "641 US and Puerto Rico warehouses, fiscal 2026." }] },
   { name: "Trader Joe's", cat: "grocery", color: "#b07aa1", brands: [
     { name: "Trader Joe's", sel: '["shop"="supermarket"]', re: "^Trader Joe", ref: 662, src: "662 US stores, Sept 2026 store-locator count (ScrapeHero)." }] },
-  { name: "Regional grocer", cat: "grocery", color: "#59a14f", brands: [
+  { name: "Regional grocer", cat: "grocery", color: "#59a14f", why: "Known for careful site picks that follow new rooftops; within their states, the one signal tied to both higher rents and faster growth. Each operates in only a few states (Texas, the Southeast, the Northeast), so heavy weights would push the rest of the country down a national ranking.", brands: [
     { name: "H-E-B", sel: '["shop"="supermarket"]', re: "^H-E-B", ref: null, src: "No recent official count found." },
     { name: "Publix", sel: '["shop"="supermarket"]', re: "^Publix", ref: 1434, src: "1,434 stores as of May 2026 (company filing)." },
     { name: "Wegmans", sel: '["shop"="supermarket"]', re: "^Wegmans", ref: 114, src: "About 114 stores, 2026." }] },
-  { name: "Starbucks", cat: "food", color: "#1b7f5f", brands: [
+  { name: "Starbucks", cat: "food", color: "#1b7f5f", why: "Near about nine in ten scored areas, so it mostly separates towns from the countryside.", brands: [
     { name: "Starbucks", sel: '["amenity"="cafe"]', re: "^Starbucks", ref: 16944, src: "16,944 US stores, March 2026 (company). Includes licensed counters inside Target, grocery stores and airports, which OpenStreetMap rarely maps." }] },
-  { name: "Target", cat: "shopping", color: "#c2185b", brands: [
+  { name: "Target", cat: "shopping", color: "#c2185b", why: "Near most suburbs, so it adds little once rarer chains are counted.", brands: [
     { name: "Target", sel: '["shop"]', re: "^Target$", ref: 2019, src: "2,019 stores, Aug 1 2026 (10-Q)." }] },
-  { name: "Home improvement", cat: "shopping", color: "#f28e2b", brands: [
+  { name: "Home improvement", cat: "shopping", color: "#f28e2b", why: "Home Depot and Lowe's open ahead of incomes: a Frontier early mover, but near too many suburbs to help the other lenses.", brands: [
     { name: "Home Depot", sel: '["shop"]', re: "^(The )?Home Depot$", ref: 2021, src: "2,021 stores in the 50 states and DC, Feb 2026." },
     { name: "Lowe's", sel: '["shop"]', re: "^Lowe['’]s( Home Improvement)?$", ref: 1759, src: "1,759 stores, May 2026." }] },
-  { name: "Dutch Bros", cat: "food", color: "#5aa9a3", brands: [
+  { name: "Dutch Bros", cat: "food", color: "#5aa9a3", why: "Opens where counties are gaining people, mostly in the West and Texas, ahead of incomes: counts in Growth suburbs and as a Frontier early mover.", brands: [
     { name: "Dutch Bros", sel: '["amenity"="cafe"]', re: "^Dutch Bros", ref: 1225, src: "1,225 shops, June 30 2026 (company)." }] },
   { name: "Cult regional QSR", cat: "food", color: "#9c755f", brands: [
     { name: "Whataburger", sel: '["amenity"="fast_food"]', re: "^Whataburger", ref: null, src: "No recent official count found." },
@@ -39,13 +39,13 @@ const GROUPS = [
   { name: "Upscale fast casual", cat: "food", color: "#e8749a", why: "Trade areas skew toward young, well-educated professionals, though both chains are broadening their price range.", brands: [
     { name: "CAVA", sel: '["amenity"~"^(restaurant|fast_food)$"]', re: "^CAVA$", ci: false, ref: 476, src: "476 restaurants, July 2026 (company)." },
     { name: "sweetgreen", sel: '["amenity"~"^(restaurant|fast_food)$"]', re: "^sweetgreen", ref: null, src: "No recent official count found." }] },
-  { name: "ALDI", cat: "grocery", color: "#1f8fc4", w0: 0, why: "Off by default. ATTOM found the best flip returns near ALDI: a value and upward-mobility signal, not affluence.", brands: [
+  { name: "ALDI", cat: "grocery", color: "#1f8fc4", w0: 0, why: "Off in the scoring lenses: its areas skew lower-income. A Frontier early mover: its areas are growing while still cheaper, and ATTOM found the best flip returns near ALDI.", brands: [
     { name: "ALDI", sel: '["shop"="supermarket"]', re: "^ALDI$", ref: null, src: "No recent official count found." }] },
   { name: "Shake Shack", cat: "food", color: "#475569", why: "Premium-priced fast casual with a deliberate US rollout.", brands: [
     { name: "Shake Shack", sel: '["amenity"~"^(fast_food|restaurant)$"]', re: "^Shake Shack", ref: 460, src: "About 460 US Shacks, Aug 2026 (company)." }] },
   { name: "First Watch", cat: "food", color: "#a16207", why: "Daytime dining expanding in suburbs, with 100+ projects in development.", brands: [
     { name: "First Watch", sel: '["amenity"~"^(restaurant|cafe|fast_food)$"]', re: "^First Watch", ref: 665, src: "665 restaurants in 33 states, June 2026 (company)." }] },
-  { name: "Drive-thru growth", cat: "food", color: "#0891b2", why: "Fast-growing drive-thru chains moving into new suburbs; 7 Brew plans 400+ openings in 2026.", brands: [
+  { name: "Drive-thru growth", cat: "food", color: "#0891b2", why: "Fast-growing drive-thru chains moving into new suburbs; 7 Brew plans 400+ openings in 2026. So far their areas skew lower-income without growing faster, so only Frontier counts them.", brands: [
     { name: "Raising Cane's", sel: '["amenity"="fast_food"]', re: "^Raising Cane['’]s", ref: 1000, src: "Passed 1,000 restaurants in 2026 (third-party tracker). A few are outside the US." },
     { name: "7 Brew", sel: '["amenity"~"^(cafe|fast_food)$"]', re: "^7 ?Brew", ref: null, src: "No recent official count found." }] },
   { name: "Upscale specialty retail", cat: "shopping", color: "#a855f7", why: "A judgment-based group: affluent-skewing retailers, without the research backing of the other signals.", brands: [
@@ -76,7 +76,7 @@ const GROUPS = [
     { name: "Neiman Marcus", sel: '["shop"]', re: "^Neiman Marcus$", ref: null, src: "No recent official count found." },
     { name: "Saks Fifth Avenue", sel: '["shop"]', re: "^Saks Fifth Avenue$", ref: null, src: "No recent official count found. Excludes Saks Off 5th." },
     { name: "Bloomingdale's", sel: '["shop"]', re: "^Bloomingdale['’]s$", ref: null, src: "No recent official count found. Excludes outlets." }] },
-  { name: "Premium childcare", cat: "fitness", color: "#38bdf8", why: "Private early-education chains with high tuition. They follow affluent young families into new subdivisions.", brands: [
+  { name: "Premium childcare", cat: "fitness", color: "#38bdf8", why: "Private early-education chains with high tuition. They follow affluent young families into new subdivisions, and they're the strongest single sign of high incomes and home values in this data.", brands: [
     { name: "Primrose Schools", sel: '["amenity"~"^(kindergarten|childcare|school)$"]', re: "^Primrose School", ref: null, src: "No recent official count found." },
     { name: "Goddard School", sel: '["amenity"~"^(kindergarten|childcare|school)$"]', re: "^(The )?Goddard School", ref: null, src: "No recent official count found." }] },
   { name: "Tesla", cat: "fitness", color: "#dc2626", why: "Showrooms and service centers; chargers are excluded.", brands: [
@@ -94,38 +94,44 @@ function rebuildBrands() {
 rebuildBrands();
 
 const byNames = (obj, dflt) => GROUPS.map(g => obj[g.name] ?? dflt);
+// Each weighting is fitted to a goal: how much a chain's presence within 5 miles predicts that goal in census tracts,
+// compared within each state and over and above every other chain. A chain counts only if the link held in both halves
+// of the country. Weights on chains that operate in only a few regions are kept low, so a national ranking doesn't
+// write off the regions they skip. See "How the weights were set" in the README.
 const PRESETS = [
-  { id: "mf", name: "Multifamily", w: byNames({ "Chick-fil-A": 1, "Costco": 1, "Trader Joe's": 2, "Regional grocer": 1, "Starbucks": 1, "Target": 1,
-      "Dutch Bros": 1, "Whole Foods": 2, "Sprouts": 1, "Life Time": 1, "Upscale fast casual": 3, "Shake Shack": 1, "First Watch": 1,
-      "Drive-thru growth": 1, "Upscale specialty retail": 2, "Luxury fitness": 2, "Premium grocery": 1, "Tesla": 1 }, 0) },
-  { id: "sf", name: "Single-family", w: byNames({ "Chick-fil-A": 2, "Costco": 2, "Trader Joe's": 1, "Regional grocer": 2, "Starbucks": 1, "Target": 2,
-      "Home improvement": 2, "Dutch Bros": 1, "Cult regional QSR": 1, "Whole Foods": 1, "Sprouts": 1, "Life Time": 2, "First Watch": 2,
-      "Drive-thru growth": 2, "Premium home furnishings": 1, "Premium childcare": 3 }, 0) },
-  { id: "all", name: "All signals", w: GROUPS.map(g => g.w0 ?? 1) },
-  { id: "affluent", name: "Affluent", w: byNames({ "Chick-fil-A": 1, "Costco": 2, "Trader Joe's": 3, "Regional grocer": 1, "Starbucks": 1, "Target": 1,
-      "Whole Foods": 3, "Sprouts": 2, "Life Time": 3, "Upscale fast casual": 2, "Shake Shack": 1, "First Watch": 1, "Upscale specialty retail": 2,
-      "Luxury fitness": 2, "Premium grocery": 2, "Premium home furnishings": 2, "Luxury department stores": 1, "Premium childcare": 2, "Tesla": 1 }, 0) },
-  { id: "high", name: "High-end only", w: byNames({ "Trader Joe's": 1, "Whole Foods": 2, "Life Time": 2, "Upscale specialty retail": 2, "Luxury fitness": 3,
-      "Premium grocery": 3, "Premium home furnishings": 2, "Luxury department stores": 2, "Premium childcare": 1, "Tesla": 1 }, 0) },
-  { id: "growth", name: "Growth suburbs", w: byNames({ "Chick-fil-A": 2, "Costco": 1, "Regional grocer": 2, "Starbucks": 1, "Target": 1, "Home improvement": 1,
-      "Dutch Bros": 3, "Cult regional QSR": 2, "Sprouts": 1, "Upscale fast casual": 1, "First Watch": 2, "Drive-thru growth": 3, "Premium childcare": 2 }, 0) },
+  { id: "mf", name: "Multifamily", w: byNames({ "Premium childcare": 3, "Life Time": 3, "Trader Joe's": 3, "Sprouts": 2, "Regional grocer": 1,
+      "First Watch": 1, "Upscale fast casual": 1, "Luxury fitness": 1, "Whole Foods": 1, "Premium home furnishings": 1 }, 0),
+    note: "Fitted to renter areas with high rents, college-educated adults, rent growth and in-migration. Premium preschools, Life Time and Trader Joe's predicted those best. Regional grocers predicted well too but cover only a few states, so they count 1×. Chains near almost every suburb (Starbucks, Target, Chick-fil-A, Home Depot) are off: they don't tell areas apart." },
+  { id: "sf", name: "Single-family", w: byNames({ "Premium childcare": 3, "Life Time": 3, "Regional grocer": 2, "Premium home furnishings": 2, "Costco": 1 }, 0),
+    note: "Fitted to family suburbs with high incomes, high ownership, newer homes and population growth. Premium preschools and Life Time lead; regional grocers and RH, Pottery Barn and their peers follow homeowners. Chick-fil-A, Target, Home Depot and the drive-thrus are off: they're near most suburbs, and the places without them are usually newer and growing faster." },
+  { id: "all", name: "All signals", w: GROUPS.map(g => g.w0 ?? 1),
+    note: "Every signal counts once, except ALDI: the plain read of where site-selective chains have chosen to be." },
+  { id: "affluent", name: "Affluent", w: byNames({ "Trader Joe's": 3, "Premium childcare": 2, "Life Time": 2, "Whole Foods": 2, "Luxury fitness": 2,
+      "Upscale fast casual": 2, "Regional grocer": 1, "Costco": 1, "Target": 1, "Starbucks": 1, "Sprouts": 1, "First Watch": 1, "Tesla": 1,
+      "Luxury department stores": 1 }, 0),
+    note: "Fitted to incomes, home values, rents and education. Trader Joe's is the strongest chain found nationwide; premium preschools, Life Time, Whole Foods, luxury fitness and CAVA and sweetgreen add depth. Value chains (ALDI, Home Depot and Lowe's, Dutch Bros, the drive-thrus) are off: their areas skew lower-income." },
+  { id: "high", name: "High-end only", w: byNames({ "Luxury fitness": 3, "Whole Foods": 3, "Premium childcare": 2, "Life Time": 1, "Trader Joe's": 1,
+      "Upscale specialty retail": 1, "Premium grocery": 1, "Premium home furnishings": 1, "Luxury department stores": 1, "Tesla": 1 }, 0),
+    note: "Separates the top among areas with $100K+ incomes. Equinox, Barry's and their peers lead, then Whole Foods and premium preschools. Luxury retail and Tesla count 1×: they mark wealth but add little once those are counted." },
+  { id: "growth", name: "Growth suburbs", w: byNames({ "Premium childcare": 3, "Regional grocer": 2, "Dutch Bros": 2, "Cult regional QSR": 2, "Life Time": 1 }, 0),
+    note: "Fitted to suburbs gaining people and home value, and building new homes. Premium preschools lead, then regional grocers, Dutch Bros, and Whataburger, In-N-Out and Wawa. Raising Cane's and 7 Brew are off: their areas haven't grown faster." },
 ];
 
 // A lens is a starting point: a weighting, a scoring mode and a set of filters for one kind of buyer.
 const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999, pipe: 0 };
 const LENSES = [
-  { id: "mf", name: "Multifamily", short: "Renter demand near lifestyle retail", preset: "mf", mode: "score", filters: { renter: 30, popg: 0 },
+  { id: "mf", name: "Multifamily", short: "Well-paid renters, growing counties", preset: "mf", mode: "score", filters: { renter: 30, popg: 0 },
     icon: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',
-    desc: "Weights the chains that follow young, well-paid renters (fast casual, specialty grocers, boutique fitness) and keeps areas where 30%+ of households rent in counties that are still growing." },
+    desc: "Keeps areas where 30%+ of households rent in counties that are still growing, and weights the chains that best predicted high rents and college-educated renters there (premium preschools, Life Time, Trader Joe's). Chain clusters mark proven demand, not recent rent growth, so check rent change and the apartment pipeline too." },
   { id: "sf", name: "Single-family", short: "Family growth suburbs, attainable prices", preset: "sf", mode: "score", filters: { inc: 65000, pti: 5, popg: 3 },
     icon: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5"/>',
-    desc: "Weights the chains that follow young families into new suburbs (Chick-fil-A, Costco, Target, premium childcare) and keeps areas with $65K+ incomes, homes under 5× income and 3%+ county growth since 2020." },
+    desc: "Keeps areas with $65K+ incomes, homes under 5× income and 3%+ county growth since 2020, and weights the few chains that marked the best family suburbs among them (premium preschools, Life Time, regional grocers). Chains are a weak guide here: the filters do most of the work." },
   { id: "retail", name: "Retail signal", short: "Where site-selective chains cluster", preset: "all", mode: "score", filters: {},
     icon: '<path d="M5 8h14l-1 12H6L5 8ZM9 8V6a3 3 0 0 1 6 0v2"/>',
     desc: "Every signal counts once, with no filters: the plain read of where site-selective chains have chosen to be." },
   { id: "frontier", name: "Frontier", short: "Early movers in, anchors not yet", preset: "all", mode: "frontier", filters: {},
     icon: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>',
-    desc: "Areas where early movers (Chick-fil-A, regional grocers, drive-thrus) have arrived but late anchors (Costco, Trader Joe's, Whole Foods) haven't. Chains are betting on these before prices catch up." },
+    desc: "Areas where early movers (Dutch Bros, ALDI, Home Depot or Lowe's, regional grocers, drive-thrus) have arrived but late anchors (Costco, Trader Joe's, Whole Foods, Life Time, premium preschools) haven't. These areas have grown faster than the rest of their state while prices stayed lower." },
 ];
 const LENS_KPIS = {
   mf: ["rent", "renter", "vac", "mf5", "inc", "yld", "hv", "pti", "yb", "bach", "dens", "pop"],
@@ -222,9 +228,11 @@ let cells = [], cellBuckets = new Map(), coarseBuckets = new Map(), storeBuckets
 let maxW = 0;
 let gState = GROUPS.map(() => "idle");
 let viewMode = "score";
-const DEFAULT_ROLE = { "Chick-fil-A": "early", "Regional grocer": "early", "Home improvement": "early", "Dutch Bros": "early",
-  "Cult regional QSR": "early", "First Watch": "early", "Drive-thru growth": "early", "Premium childcare": "early",
-  "Costco": "late", "Trader Joe's": "late", "Whole Foods": "late", "Life Time": "late", "Premium grocery": "late" };
+// Early movers are chains whose areas grew faster than their state's without (yet) being richer; late anchors mark
+// areas that are already well-off. Chick-fil-A and First Watch fit neither; premium preschools mark affluence.
+const DEFAULT_ROLE = { "Regional grocer": "early", "Home improvement": "early", "Dutch Bros": "early", "Cult regional QSR": "early",
+  "Drive-thru growth": "early", "ALDI": "early",
+  "Costco": "late", "Trader Joe's": "late", "Whole Foods": "late", "Life Time": "late", "Premium grocery": "late", "Premium childcare": "late" };
 let roles = GROUPS.map(g => DEFAULT_ROLE[g.name] || "none");
 let minEarly = 4, maxLate = 0, lateRadius = 10;
 let reportAt = null;              // {lat, lon, label}
@@ -969,6 +977,9 @@ const CHIP = {
   mfpipe: d => d.mfpipe != null && `<b>${d.mfpipe.toFixed(1)}%</b> pipeline`,
 };
 const SORT_ASC = new Set(["pti", "mfpipe"]);   // lower is better
+// Equal scores are common at the top. The investor lenses put the faster-growing county first: chain clusters mark
+// proven demand, not momentum, and store count (the fallback) favors built-out retail hubs.
+const TIE_BY = { mf: "popg", sf: "popg", frontier: "popg" };
 function passes(d) {
   if (filt.inc > 0 && !(d.inc >= filt.inc)) return false;
   if (filt.pti > 0 && !(d.pti != null && d.pti <= filt.pti)) return false;
@@ -989,9 +1000,10 @@ function updateTop() {
   const haveDemo = market.counties || market.tracts;
   const useFilters = filtering() && haveDemo;
   const ranked = sortBy !== "score" && haveDemo;
+  const tie = sortBy === "score" && haveDemo ? TIE_BY[lens] : null;
   const onlyView = $("inView").checked, bnd = map.getBounds();
   const sep = Math.max(12, radius * 3);
-  const limit = ranked ? 160 : 25;
+  const limit = ranked || tie ? 160 : 25;
   const th = threshold();
   const picks = [];
   let checks = 0;
@@ -1011,6 +1023,10 @@ function updateTop() {
       if (x == null) return 1; if (y == null) return -1;
       return asc ? x - y : y - x;
     });
+    picks.length = Math.min(picks.length, 25);
+  } else if (tie) {
+    const v = p => p.d[tie] ?? -1e9;
+    picks.sort((a, b) => b.c.score - a.c.score || v(b) - v(a));
     picks.length = Math.min(picks.length, 25);
   }
   if (!picks.length) {
@@ -1538,6 +1554,7 @@ function renderLens() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${l.icon}</svg>
     <b>${escapeHtml(l.name)}</b><span>${escapeHtml(l.short)}</span></button>`).join("");
   $("lens").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { if (b.dataset.lens !== lens || lensDirty()) applyLens(b.dataset.lens); }));
+  $("sortBy").options[0].textContent = TIE_BY[lens] ? "Signal score, then county growth" : "Signal score";
   renderLensDesc();
 }
 function lensDefaults(id = lens) {
@@ -1587,6 +1604,7 @@ function renderPresets() {
     b.addEventListener("click", () => { weights = presetWeights(p); activePreset = i; renderPresets(); renderGroups(); rescore(); });
     box.appendChild(b);
   });
+  $("presetNote").textContent = activePreset >= 0 ? PRESETS[activePreset].note : "Your own weighting. Pick a preset to start from one of the fitted ones.";
 }
 const SRC_TAG = { "OpenStreetMap": "OSM", "All the Places": "ATP", "CSV": "CSV" };
 function renderGroups() {
@@ -1648,7 +1666,7 @@ function setView(mode) {
   viewMode = mode;
   $("frontierBox").hidden = mode !== "frontier";
   $("scoreOnly").hidden = mode === "frontier";
-  $("presets").hidden = mode === "frontier";
+  $("presets").hidden = $("presetNote").hidden = mode === "frontier";
   updateFrontierControls();
   fillColorBy();
   computeLate();

@@ -17,7 +17,7 @@ Chains like these spend heavily on site research before they sign a lease. Where
 
 ## What it does
 
-- **Investment lenses.** Multifamily, Single-family, Retail signal and Frontier each set a chain weighting and starting filters for that buyer. Everything stays adjustable.
+- **Investment lenses.** Multifamily, Single-family, Retail signal and Frontier each set a chain weighting and starting filters for that buyer. The weightings are fitted to what each buyer is looking for (see [How the weights were set](#how-the-weights-were-set)). Everything stays adjustable.
 - **Top areas.** A ranked list of the best-scoring areas, filtered by household income, price-to-income, renter share, county population growth, rent growth and apartment pipeline. Rank by signal score, population growth, domestic migration, rent growth, income, affordability, gross yield or least new supply. Export the list to CSV.
 - **Site reports.** Click anywhere (or search an address) for a report on that spot: signal score and national percentile; trade-area rent, renter share, rental vacancy, apartment share, income, home value, price-to-income, gross yield, age of housing, education and density; the ZIP code's Zillow rent and home value trends; county population growth, domestic migration, building permits and apartment pipeline; and every chain nearby with Google Maps links to confirm each store. Reports print cleanly to PDF.
 - **Compare.** Pin up to four sites from their reports and see them side by side, with the best value in each row highlighted. Export to CSV or print.
@@ -44,6 +44,44 @@ Trade-area figures combine the census tracts centered within the radius, weighte
 ZIP figures come from the nearest ZIP code with Zillow data. Building permits use full calendar years only: the Census's monthly county files count just the places that reported that month, which can make a county look like its permits collapsed.
 
 Census tracts in Connecticut use the state's new planning regions; the county outlines on the map still show the old counties, so Connecticut's county shading is blank while its tract data works normally.
+
+## How the weights were set
+
+Each preset is fitted to a goal for its buyer, then checked against it. The unit is the census tract: about 66,000 tracts with a signal nearby, each measured over the same 5-mile trade area the site report uses.
+
+1. **A goal for each preset**, averaged from standardized measures, among the areas the lens's starting filters keep:
+   - **Multifamily:** high rents and college-educated adults (half), plus rent growth, net domestic migration and population growth (half). Areas where 30%+ of households rent, in counties that are still growing.
+   - **Single-family:** incomes, homeownership, newer homes, home-value growth, population growth and migration. Areas with $65K+ incomes, homes under 5× income and 3%+ county growth.
+   - **Affluent:** incomes, home values, rents and education. **High-end only:** the same, among $100K+ areas.
+   - **Growth suburbs:** population growth, migration, home-value growth and newer homes, outside dense cores.
+2. **What each chain group adds.** A regression of the goal on which groups have a store within 5 miles, compared within each state (so a regional chain isn't credited with its region's growth) and holding every other group fixed. A group counts only if its direction held in both halves of the country.
+3. **Weights.** The strongest groups get 3×, then 2× and 1×. Chains near almost every suburb (Starbucks, Target, Chick-fil-A, Home Depot and Lowe's) mostly separate towns from the countryside, so they're off in the investor presets.
+4. **Regional reach.** Regional grocers (H-E-B, Publix, Wegmans) predict well, but each operates in only a few states. At 3× they pushed every Western and Midwestern market out of Multifamily's top 5%, so they count 1× there. The final weights keep the top-scoring areas' regional mix close to where each goal is actually highest.
+
+How well each preset ranks areas against its goal (rank correlation; 1 would be a perfect ranking):
+
+| Preset | Before | After | Counts most now |
+|---|---|---|---|
+| Multifamily | 0.43 | 0.50 | Premium preschools, Life Time, Trader Joe's |
+| Single-family | −0.13 | 0.06 | Premium preschools, Life Time |
+| Affluent | 0.62 | 0.64 | Trader Joe's, then premium preschools, Life Time, Whole Foods, luxury fitness, CAVA and sweetgreen |
+| High-end only | 0.45 | 0.46 | Luxury fitness, Whole Foods |
+| Growth suburbs | 0.13 | 0.26 | Premium preschools, then regional grocers, Dutch Bros, Whataburger, In-N-Out and Wawa |
+
+Frontier's roles were checked the same way. Early movers should be chains whose areas grow faster than the rest of their state without being richer yet; late anchors mark areas that are already well-off. Chick-fil-A and First Watch fit neither, premium preschools turned out to be the strongest sign of affluence (so they're now a late anchor), and ALDI is the clearest early mover. With the new roles, qualifying areas are growing a bit faster than the rest of their state (+0.33 SD, was +0.30) and are cheaper relative to it (home prices 0.75 years of income below the state's typical ratio, was 0.61). Fewer areas qualify: 2,292 tracts in 25 states, down from 3,490 in 32.
+
+What the fit showed:
+
+- **Chain clusters mark proven demand, not momentum.** In renter areas, more chains went with slower recent rent growth and in-migration under every weighting tried. The Multifamily score finds strong renter areas; use the rent change, county growth and apartment pipeline filters for momentum.
+- **Chains are a weak guide for single-family** once the lens's filters apply. The old weights ranked areas slightly backwards, because everyday chains mark older, built-out suburbs, and the newer, faster-growing ones often don't have them yet.
+- **Premium preschools (Primrose, Goddard) are the strongest single signal in the data**, ahead of Life Time and Trader Joe's.
+- **California is underrated** by every weighting tried: its home values and rents top the national affluence measures, but premium preschools, Life Time and the regional grocers are scarce there.
+
+To recheck the weights after a data refresh (it prints each group's fit next to its current weight, and each preset's ranking quality):
+
+```bash
+node scripts/check_lens_weights.mjs
+```
 
 ## Running it locally
 
