@@ -138,7 +138,7 @@ const LENS_KPIS = {
   sf: ["hv", "pti", "inc", "yb", "renter", "bach", "rent", "yld", "dens", "vac", "mf5", "pop", "taxr", "risk", "jobs"],
   retail: ["inc", "hv", "rent", "bach", "pti", "renter", "yld", "dens", "yb", "vac", "mf5", "pop", "jobs", "taxr", "risk"],
 };
-const LENS_CHIPS = { mf: ["renter", "rent", "popg", "mfpipe"], sf: ["inc", "pti", "popg"], retail: ["inc", "hv", "popg"], frontier: ["inc", "pti", "popg"] };
+const LENS_CHIPS = { mf: ["renter", "rent", "popg", "mfpipe", "opens"], sf: ["inc", "pti", "popg", "opens"], retail: ["inc", "hv", "popg", "opens"], frontier: ["inc", "pti", "popg", "opens"] };
 
 const STATUS_LABEL = { opened: "Just opened", dated: "Date set", planned: "Planned", proposed: "Proposed" };
 const STATE_ABBR = { alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",colorado:"CO",connecticut:"CT",delaware:"DE","district of columbia":"DC",
@@ -228,6 +228,8 @@ const COLOR_GROUPS = [
 // ================= State =================
 let stores = [];                  // {g,b,lat,lon,city,st,src}
 let upcoming = [];                // {g,b,place,status,when,src:{name,url},lat,lon}
+let openings = [], closings = []; // tracked chains' store changes in the last 12 months: {g,b,place,lat,lon,d,since}
+let changesMeta = null, changeBuckets = new Map();
 let brandSrc = {};                // brand name -> data source label
 let loadedBrands = new Set();     // brands that have been fetched or imported (even if zero stores came back)
 let storeMeta = { saved: "" };
@@ -430,6 +432,22 @@ const SignalLayer = L.GridLayer.extend({
       ctx.globalAlpha = 1;
     }
 
+    // Stores opened in the past year get a green ring around their dot; closed ones a gray ring where they were.
+    if (showUpcoming && (openings.length || closings.length) && z >= 6) {
+      const r = (z < 8 ? 2.3 : z < 10 ? 3.2 : z < 13 ? 4.2 : 5.5) + 3;
+      ctx.lineWidth = z >= 10 ? 2.5 : 2;
+      for (const [list, col] of [[closings, dark ? "#8a8a85" : "#9a9a95"], [openings, "#16a34a"]]) {
+        ctx.strokeStyle = col;
+        ctx.setLineDash(list === closings ? [2, 2] : []);
+        for (const x of list) {
+          if (!groupVisible(x.g) || !inTile(x.lat, x.lon)) continue;
+          const p = m.project([x.lat, x.lon], z).subtract(origin);
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+    }
+
     if (showUpcoming && upcoming.length) {
       const r = z < 6 ? 4.5 : z < 10 ? 6 : 8;
       for (const u of upcoming) {
@@ -579,6 +597,7 @@ function rescore() {
     let a = coarseBuckets.get(k); if (!a) coarseBuckets.set(k, a = []);
     a.push(c);
   }
+  markOpenings();
   updateThresholdLabel();
   renderLegend();
   signalLayer.redraw();
@@ -587,6 +606,62 @@ function rescore() {
   if (reportAt) renderReport();
   renderDeals(); renderCompare();
   syncUrl();
+}
+
+// ---------- Store openings and closings (data/changes.json, from scripts/track_stores.py) ----------
+function setChanges(j) {
+  const cut = new Date(j.updated); cut.setFullYear(cut.getFullYear() - 1);
+  const since = cut.toISOString().slice(0, 10);
+  changesMeta = { updated: j.updated, since };
+  const item = x => {
+    const b = brandByName.get(x.b), [city, st] = String(x.p || "").split("|");
+    return b && inUS(x.lat, x.lon) ? { g: b.g, b: x.b, lat: x.lat, lon: x.lon, place: [city, st].filter(Boolean).join(", "), d: x.d, since: x.since } : null;
+  };
+  const recent = (j.items || []).filter(x => x.d > since);
+  openings = recent.filter(x => x.k === "o").map(item).filter(Boolean);
+  closings = recent.filter(x => x.k === "c").map(item).filter(Boolean);
+  changeBuckets = new Map();
+  for (const x of [...openings.map(o => ({ ...o, k: "o" })), ...closings.map(c => ({ ...c, k: "c" }))]) {
+    const k = bucketKey(Math.floor(x.lat / SB), Math.floor(x.lon / SB));
+    let a = changeBuckets.get(k); if (!a) changeBuckets.set(k, a = []); a.push(x);
+  }
+  if (cells.length) rescore();
+}
+// Openings and closings within R miles, nearest first.
+function changesNear(lat, lon, R = radius) {
+  const out = [], span = R / 69 + 0.05;
+  for (let bi = Math.floor((lat - span) / SB); bi <= Math.floor((lat + span) / SB); bi++)
+    for (let bj = Math.floor((lon - span * 1.6) / SB); bj <= Math.floor((lon + span * 1.6) / SB); bj++)
+      for (const x of changeBuckets.get(bucketKey(bi, bj)) || []) {
+        const d = distMi(lat, lon, x.lat, x.lon);
+        if (d <= R) out.push({ ...x, dist: d });
+      }
+  return out.sort((a, b) => a.dist - b.dist);
+}
+const countsOpening = g => viewMode === "frontier" ? roles[g] !== "none" : weights[g] > 0;
+const openingsNear = (lat, lon) => changesNear(lat, lon).filter(x => x.k === "o" && countsOpening(x.g)).length;
+// How many openings of the lens's chains each scored cell has within the radius, and where that ranks nationally.
+function markOpenings() {
+  for (const c of cells) c.op = 0;
+  if (!openings.length || !cells.length) return;
+  const idx = new Map(cells.map(c => [c.k, c]));
+  const { latStep, lonStep, cellMi } = grid, R2 = radius * radius;
+  for (const o of openings) {
+    if (!countsOpening(o.g)) continue;
+    const cosl = Math.cos(o.lat * Math.PI / 180), si = Math.floor(o.lat / latStep), sj = Math.floor(o.lon / lonStep);
+    const di = Math.ceil(radius / cellMi) + 1, dj = Math.ceil(radius / (lonStep * 69 * cosl)) + 1;
+    for (let i = si - di; i <= si + di; i++) {
+      const dy = ((i + 0.5) * latStep - o.lat) * 69;
+      if (dy * dy > R2) continue;
+      for (let j = sj - dj; j <= sj + dj; j++) {
+        const dx = ((j + 0.5) * lonStep - o.lon) * 69 * cosl;
+        if (dx * dx + dy * dy > R2) continue;
+        const c = idx.get(cellKey(i, j));
+        if (c) c.op++;
+      }
+    }
+  }
+  setRanking("opens", cells.filter(c => c.score > 0).map(c => [c.op, 1]));
 }
 
 // Share of scored cells (areas with any tracked store nearby) at or above a score.
@@ -841,7 +916,8 @@ function areaDemo(lat, lon) {
   const z = zipAt(lat, lon);
   const pick = k => ta?.[k] ?? cd?.[k] ?? null;
   const d = { ta, cty, z, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
-    taxr: pick("taxr"), risk: pick("risk"), popg: cd?.popg ?? null, ...marketOf(cd, z) };
+    taxr: pick("taxr"), risk: pick("risk"), popg: cd?.popg ?? null, ...marketOf(cd, z),
+    opens: changesMeta ? openingsNear(lat, lon) : null };
   d.mom = momentum(d);
   return d;
 }
@@ -852,9 +928,9 @@ function areaDemo(lat, lon) {
 // place. Chain clusters mark proven demand but not momentum, so the investor lenses rank Top areas on both.
 const MOMENTUM = {
   mf: [["dmig", "migration"], ["popg1", "population growth last year"], ["empg1", "job growth"], ["zori1", "1-year rent change"],
-    ["mfpipe", "apartment pipeline", -1]],
+    ["mfpipe", "apartment pipeline", -1], ["opens", "chain openings nearby"]],
   sf: [["dmig", "migration"], ["popg1", "population growth last year"], ["empg1", "job growth"], ["zhvi1", "1-year home value change"],
-    ["invg", "for-sale listings change", -1]],
+    ["invg", "for-sale listings change", -1], ["opens", "chain openings nearby"]],
 };
 const OVERALL_MIX = 0.5;   // share of the overall rank that comes from the signal score; the rest is momentum
 const marketOf = (cd, z) => ({ dmig: cd?.dmig ?? null, popg1: cd?.popg1 ?? null, mfpipe: cd?.mfpipe ?? null,
@@ -879,7 +955,7 @@ function pctRank(k, v) {
 function momentum(d, id = lens) {
   const spec = MOMENTUM[id];
   if (!spec || !d) return null;
-  const parts = spec.map(([k, label, dir]) => { const p = pctRank(k, d[k]); return { k, label, p: p == null ? null : dir < 0 ? 100 - p : p }; });
+  const parts = spec.map(([k, label, dir]) => { const p = pctRank(k, d[k]); return { k, label, inv: dir < 0, p: p == null ? null : dir < 0 ? 100 - p : p }; });
   const ok = parts.filter(x => x.p != null);
   return ok.length >= 2 ? { score: ok.reduce((a, x) => a + x.p, 0) / ok.length, parts: ok } : null;
 }
@@ -889,6 +965,7 @@ const nth = p => { const n = Math.min(99, Math.max(1, Math.round(p))); return n 
 async function loadMarket() {
   setMarketPill("busy", "Loading market data");
   getJSON(dataUrl("landlord.json")).then(j => { landlord = j; if (reportAt) renderReport(); }).catch(e => console.warn(e));
+  getJSON(dataUrl("changes.json")).then(setChanges).catch(e => console.warn(e));
   try {
     const [topo, cj, zj] = await Promise.all([getJSON(dataUrl("counties-10m.json")), getJSON(dataUrl("counties.json")), getJSON(dataUrl("zips.json"))]);
     setCounties(topo); setCountyData(cj); setZips(zj); buildCountyLayer();
@@ -1062,8 +1139,9 @@ const CHIP = {
   mom: d => d.mom && `<b>${Math.round(d.mom.score)}</b> momentum`,
   empg1: d => d.empg1 != null && `<b>${pct(d.empg1)}</b> jobs`,
   risk: d => d.risk != null && `<b>${Math.round(d.risk)}</b> hazard risk`,
+  opens: d => d.opens > 0 && `<b>${d.opens}</b> ${d.opens === 1 ? "opening" : "openings"}`,
 };
-const OVERALL_CHIPS = { mf: ["sig", "mom", "empg1", "zori1", "mfpipe"], sf: ["sig", "mom", "empg1", "zhvi1", "pti"] };
+const OVERALL_CHIPS = { mf: ["sig", "mom", "empg1", "zori1", "mfpipe", "opens"], sf: ["sig", "mom", "empg1", "zhvi1", "pti", "opens"] };
 const SORT_ASC = new Set(["pti", "mfpipe", "risk"]);   // lower is better
 // Equal scores are common at the top. The investor lenses put the faster-growing county first: chain clusters mark
 // proven demand, not momentum, and store count (the fallback) favors built-out retail hubs.
@@ -1121,7 +1199,8 @@ function updateTop() {
       const bin = Math.floor(c.lat * 20) * 100000 + Math.floor(c.lon * 20);
       if (seen.has(bin)) continue;
       seen.add(bin);
-      pool.push({ c, ov: overallOf(c.score, momentum(marketOf(countyAt(c.lat, c.lon)?.d, zipAt(c.lat, c.lon)))) });
+      const m = { ...marketOf(countyAt(c.lat, c.lon)?.d, zipAt(c.lat, c.lon)), opens: changesMeta ? c.op : null };
+      pool.push({ c, ov: overallOf(c.score, momentum(m)) });
     }
     pool.sort((a, b) => (b.ov ?? -1) - (a.ov ?? -1) || b.c.score - a.c.score);
     for (const { c, ov } of pool) {
@@ -1322,8 +1401,8 @@ function renderReport() {
 
   const dl = rows => `<dl class="mkt">${rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`;
   const zp = zipAt(lat, lon);
-  const mom = frontier ? null : momentum(marketOf(cd, zp));
-  const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}`).join(", ")}${mom.parts.some(x => x.k === "mfpipe" || x.k === "invg") ? " (less new supply ranks higher)" : ""}. Overall is half the signal score and half momentum.</div>` : "";
+  const mom = frontier ? null : momentum({ ...marketOf(cd, zp), opens: changesMeta ? openingsNear(lat, lon) : null });
+  const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}${x.inv ? " (less new supply ranks higher)" : ""}`).join(", ")}. Overall is half the signal score and half momentum.</div>` : "";
   const zipRows = [];
   if (zp?.zori) zipRows.push([`Typical rent (${monthName(marketMeta?.zori)})`, dollars(zp.zori), `${chg(zp.zori1)} 1 yr · ${chg(zp.zori3)} 3 yr`]);
   if (zp?.zhvi) zipRows.push([`Typical home value (${monthName(marketMeta?.zhvi)})`, money(zp.zhvi), `${chg(zp.zhvi1)} 1 yr · ${chg(zp.zhvi5)} 5 yr`]);
@@ -1347,6 +1426,15 @@ function renderReport() {
   const mkt = mktRows.length ? dl(mktRows)
     : `<p class="rp-fine">${market.counties ? "No county figures for this spot." : market.error ? "County data didn't load." : "Loading county data…"}</p>`;
   const costs = costRows(ta, cd);
+  // Stores the tracked chains opened or closed nearby in the last year, as found by comparing All the Places runs.
+  const ch = changesMeta ? changesNear(lat, lon) : [];
+  const chRow = x => `<li><span class="sw" style="background:${GROUPS[x.g].color}"></span>
+      <span class="cn"><b>${escapeHtml(x.b)}</b><span class="w">${x.k === "o" ? "opened" : "closed"}</span><small>${escapeHtml(x.place || "")}${x.place ? " · " : ""}between ${monthName(x.since.slice(0, 7))} and ${monthName(x.d.slice(0, 7))}</small></span>
+      <span class="cd">${x.dist.toFixed(1)} mi</span>
+      <a class="go" href="${gmapsStore({ b: x.b, lat: x.lat, lon: x.lon })}" target="_blank" rel="noopener" aria-label="${escapeHtml(x.b)} on Google Maps" title="Check on Google Maps">${ICON_EXT}</a></li>`;
+  const chBox = !changesMeta ? "" : `<h3 class="rp-h">Openings and closings <span>within ${radius} mi · past 12 months</span></h3>${ch.length
+    ? `<ul class="chains">${ch.slice(0, 12).map(chRow).join("")}</ul>${ch.length > 12 ? `<p class="rp-fine">And ${ch.length - 12} more.</p>` : ""}`
+    : `<p class="rp-fine">None of the tracked chains opened or closed a store within ${radius} mi between ${monthName(changesMeta.since.slice(0, 7))} and ${monthName(changesMeta.updated.slice(0, 7))}.</p>`}`;
   const pinned = compareIndex(lat, lon) >= 0;
 
   const fline = frontier ? `<div class="verdict${qualifies ? " yes" : ""}"><b>${qualifies ? "Frontier area" : "Not a frontier area"}</b>${lateNear.length ? `Late anchors within ${lateRadius} mi: ${escapeHtml(lateNear.join(", "))}.` : `No late anchors within ${lateRadius} mi.`} Needs ${minEarly}+ early movers and at most ${maxLate} late ${maxLate === 1 ? "anchor" : "anchors"}.</div>` : "";
@@ -1369,6 +1457,7 @@ function renderReport() {
       <h3 class="rp-h">County market${cd?.name ? ` <span>${escapeHtml(cd.name.split(",")[0])}</span>` : ""}</h3>
       ${mkt}
       ${costs.length ? `<h3 class="rp-h">Costs and risk</h3>${dl(costs)}` : ""}
+      ${chBox}
       ${rowsIn.length ? `<h3 class="rp-h">Within ${radius} mi <span>${rowsIn.length} ${frontier ? "chains" : "signals"}</span></h3><ul class="chains">${rowsIn.map(r => r[1]).join("")}</ul>` : ""}
       ${upRows ? `<h3 class="rp-h">Announced nearby <span>approximate</span></h3><ul class="chains">${upRows}</ul>` : ""}
       ${rowsOut.length ? `<h3 class="rp-h">Missing nearby <span>closest location</span></h3><ul class="chains">${rowsOut.map(r => r[1]).join("")}</ul>` : ""}
@@ -1401,7 +1490,8 @@ const rnd = (v, d = 0) => v == null || !isFinite(v) ? null : Math.round(v * 10 *
 function siteMetrics(lat, lon, label, extra = {}) {
   const sc = scoreAt(lat, lon), cd = countyAt(lat, lon)?.d || {}, z = zipAt(lat, lon) || {};
   return { label: label || placeLabel(lat, lon), extra, lat, lon, sc, top: sc.frontier ? null : topShare(sc.score),
-    ta: tradeArea(lat, lon, radius) || {}, cd, z, mom: sc.frontier ? null : momentum(marketOf(cd, z)) };
+    ta: tradeArea(lat, lon, radius) || {}, cd, z, ch: changesNear(lat, lon),
+    mom: sc.frontier ? null : momentum({ ...marketOf(cd, z), opens: changesMeta ? openingsNear(lat, lon) : null }) };
 }
 // One list drives both the CSV columns and the compare table. better: 1 = higher is better, -1 = lower is better.
 const pctPlain = v => v.toFixed(1) + "%";
@@ -1418,6 +1508,8 @@ const SITE_FIELDS = [
   F("Score", "Market momentum (0-100)", s => rnd(s.mom?.score), String, 1),
   F("Score", "Overall (0-100)", s => s.mom ? overallOf(s.sc.score, s.mom) : null, String, 1),
   F("Score", "Tracked stores nearby", s => s.sc.within, fmt, 1),
+  F("Score", "Chain openings nearby, past 12 months", s => changesMeta ? s.ch.filter(x => x.k === "o").length : null, String, 1),
+  F("Score", "Chain closings nearby, past 12 months", s => changesMeta ? s.ch.filter(x => x.k === "c").length : null, String, -1),
   F("Score", "Signals present", s => GROUPS.filter((g, i) => s.sc.near[i] && s.sc.near[i].d <= radius && groupVisible(i)).map(g => g.name).join("; "), null, 0, false),
   F("Trade area", "People", s => rnd(s.ta.pop), big),
   F("Trade area", "Household income ($)", s => rnd(s.ta.inc), money, 1),
@@ -1935,7 +2027,7 @@ function writeUrl() {
   if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
 }
-const SORTS = ["overall", "score", "popg", "dmig", "zori1", "empg1", "inc", "pti", "yld", "mfpipe", "risk"];
+const SORTS = ["overall", "score", "popg", "dmig", "zori1", "empg1", "opens", "inc", "pti", "yld", "mfpipe", "risk"];
 function readUrl() {
   const p = new URLSearchParams(location.hash.slice(1));
   applyLens(LENSES.some(l => l.id === p.get("lens")) ? p.get("lens") : "mf");

@@ -1,0 +1,220 @@
+{
+ "chains": {
+  "Chick-fil-A": {
+   "spider": "chick_fil_a",
+   "run": "2026-10-17-13-32-31",
+   "n": 3426
+  },
+  "Costco": {
+   "spider": "costco_ca_gb_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 658
+  },
+  "Trader Joe's": {
+   "spider": "trader_joes_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 666
+  },
+  "H-E-B": {
+   "spider": "h_e_b_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 346
+  },
+  "Publix": {
+   "spider": "publix_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 1454
+  },
+  "Wegmans": {
+   "spider": "wegmans_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 115
+  },
+  "Starbucks": {
+   "spider": "starbucks_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 14821
+  },
+  "Target": {
+   "spider": "target_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 2026
+  },
+  "Home Depot": {
+   "spider": "home_depot",
+   "run": "2026-10-17-13-32-31",
+   "n": 2027
+  },
+  "Lowe's": {
+   "spider": "lowes_us",
+   "run": "2026-04-18-13-32-31",
+   "n": 1760
+  },
+  "Dutch Bros": {
+   "spider": "dutch_bros",
+   "run": "2026-10-17-13-32-31",
+   "n": 1277
+  },
+  "Whataburger": {
+   "spider": "whataburger",
+   "run": "2026-10-17-13-32-31",
+   "n": 1215
+  },
+  "In-N-Out": {
+   "spider": "innout",
+   "run": "2026-10-17-13-32-31",
+   "n": 445
+  },
+  "Wawa": {
+   "spider": "wawa",
+   "run": "2026-10-17-13-32-31",
+   "n": 948
+  },
+  "Whole Foods": {
+   "spider": "whole_foods",
+   "run": "2026-10-17-13-32-31",
+   "n": 535
+  },
+  "Sprouts": {
+   "spider": "sprouts_farmers_market",
+   "run": "2026-10-17-13-32-31",
+   "n": 519
+  },
+  "Life Time": {
+   "spider": "life_time",
+   "run": "2026-10-17-13-32-31",
+   "n": 212
+  },
+  "CAVA": {
+   "spider": "cava_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 510
+  },
+  "sweetgreen": {
+   "spider": "sweetgreen_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 292
+  },
+  "ALDI": {
+   "spider": "aldi_sud_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 2735
+  },
+  "Shake Shack": {
+   "spider": "shake_shack",
+   "run": "2026-10-17-13-32-31",
+   "n": 432
+  },
+  "First Watch": {
+   "spider": "first_watch",
+   "run": "2026-10-17-13-32-31",
+   "n": 679
+  },
+  "Raising Cane's": {
+   "spider": "raising_canes_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 1003
+  },
+  "lululemon": {
+   "spider": "lululemon_ca_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 398
+  },
+  "REI": {
+   "spider": "rei_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 193
+  },
+  "Total Wine": {
+   "spider": "total_wine_and_more_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 305
+  },
+  "Apple Store": {
+   "spider": "apple",
+   "run": "2026-10-17-13-32-31",
+   "n": 269
+  },
+  "Vuori": {
+   "spider": "vuori",
+   "run": "2026-10-17-13-32-31",
+   "n": 128
+  },
+  "Warby Parker": {
+   "spider": "warby_parker",
+   "run": "2026-10-17-13-32-31",
+   "n": 380
+  },
+  "Equinox": {
+   "spider": "equinox",
+   "run": "2026-10-17-13-32-31",
+   "n": 112
+  },
+  "SoulCycle": {
+   "spider": "soulcycle",
+   "run": "2026-10-17-13-32-31",
+   "n": 52
+  },
+  "Barry's": {
+   "spider": "barrys",
+   "run": "2026-10-17-13-32-31",
+   "n": 63
+  },
+  "solidcore": {
+   "spider": "solidcore_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 198
+  },
+  "The Fresh Market": {
+   "spider": "fresh_market_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 171
+  },
+  "Williams-Sonoma": {
+   "spider": "williams_sonoma_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 146
+  },
+  "Pottery Barn": {
+   "spider": "williams_sonoma_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 158
+  },
+  "Nordstrom": {
+   "spider": "nordstrom",
+   "run": "2026-10-17-13-32-31",
+   "n": 97
+  },
+  "Neiman Marcus": {
+   "spider": "neiman_marcus_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 33
+  },
+  "Saks Fifth Avenue": {
+   "spider": "saks_fifth_avenue_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 17
+  },
+  "Bloomingdale's": {
+   "spider": "bloomingdales_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 65
+  },
+  "Primrose Schools": {
+   "spider": "primrose_school_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 571
+  },
+  "Goddard School": {
+   "spider": "goddard_school_us",
+   "run": "2026-10-17-13-32-31",
+   "n": 724
+  },
+  "Tesla": {
+   "spider": "tesla",
+   "run": "2026-10-17-13-32-31",
+   "n": 432
+  }
+ },
+ "run": "2026-10-17-13-32-31"
+}

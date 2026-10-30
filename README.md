@@ -33,7 +33,8 @@ Chains like these spend heavily on site research before they sign a lease. Where
 
 | What | Source | Level | Updated |
 |---|---|---|---|
-| Store locations (~42,700) | [All the Places](https://www.alltheplaces.xyz/) (CC0) and [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) | Store | Snapshot of Oct 28, 2026; 12 chains patched Oct 29 (see [Updating the data](#updating-the-data)) |
+| Store locations (~43,400) | [All the Places](https://www.alltheplaces.xyz/) (CC0) and [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) | Store | Monthly for 43 chains (All the Places run of Oct 17, 2026); see [Updating the data](#updating-the-data) |
+| Store openings and closings, past 12 months | Comparing All the Places runs (`scripts/track_stores.py`) | Store | Monthly |
 | Income, home value, rent, tenure, vacancy, units in structure, year built, education | Census American Community Survey 5-year, 2020–2024 | Census tract and county | Yearly (December) |
 | Population, domestic migration | Census population estimates, vintage 2025 | County | Yearly (spring) |
 | Typical home value and rent, 1/3/5-year change | Zillow Home Value Index and Zillow Observed Rent Index | County and ZIP code | Monthly |
@@ -93,6 +94,7 @@ Because chains mark proven demand but not momentum, Multifamily and Single-famil
 | Net domestic migration, 2021–25 (county) | Net domestic migration, 2021–25 (county) |
 | Population growth last year (county) | Population growth last year (county) |
 | Job growth over the year (county) | Job growth over the year (county) |
+| Openings by the lens's chains within the radius, past 12 months (ranked against all scored areas) | Same |
 | Rent change, 1 year (ZIP, else county) | Home value change, 1 year (ZIP, else county) |
 | Apartment pipeline (county; less new supply ranks higher) | For-sale listings change, 1 year (county; fewer listings ranks higher) |
 
@@ -124,29 +126,31 @@ python3 scripts/build_market_data.py
 
 It downloads about 400 MB of public files into `.cache/` the first time.
 
-**Store data** is a snapshot. To refresh it, open the site, go to Data, then either *Refresh from OpenStreetMap* or *Open files* with the latest [All the Places](https://www.alltheplaces.xyz/) brand files, and click *Save data*. Then turn the saved file into the bundled data and commit:
+**Store data** refreshes itself too: the *Refresh store data* workflow runs on the 5th of each month. For 43 chains it takes the stores from the newest finished [All the Places](https://www.alltheplaces.xyz/) run, compares them with the run the data last used, records stores that opened or closed in `data/changes.json`, and redeploys. The map shows the past 12 months of those as rings around store dots (green for opened, gray for closed), in site reports, as an "openings" chip and ranking in Top areas, and as one part of market momentum. To run it by hand:
 
 ```bash
-python3 scripts/import_stores.py ~/Downloads/retail-signal-data-YYYY-MM-DD.json
+python3 scripts/track_stores.py
 ```
 
-To patch a few chains without redoing the rest, `scripts/refresh_brands.py` replaces just those chains' stores with a chosen source: an All the Places spider (`atp:spider`, or `atp:spider@run` to use an earlier run when a spider has broken), a GeoJSON file (`file:path`), or OpenStreetMap (`osm`, which falls back to QLever's copy of OpenStreetMap when the Overpass servers are down). Join sources with `+` to fill one's gaps from another. Stores listed without coordinates are located from their addresses with the Census Bureau's batch geocoder.
+All the Places scrapes each chain's own store locator, so a change can also mean a scraper broke, started covering more stores, or moved them on the map. The tracker leaves a chain as it was when its count falls more than 15%; refreshes it without recording anything when its count jumps more than a quarter, or when one step shows more openings or closings than a real chain makes (over 10% or 6% of its stores, or over 1% each at once); counts an opening and a closing within 1.5 miles of each other as a move; and cancels a closing when the store comes back. What's left is a good guide, not a ledger: a store counts as opened in the quarter or month the chain's locator first listed it, which can run ahead of the actual opening or behind it. The first year was backfilled from quarterly runs (Oct 2025 to Oct 2026) with `--backfill 12`.
+
+Not tracked: Erewhon, Central Market, Alo Yoga, Aritzia, RH and Crate & Barrel, which All the Places doesn't cover (they come from OpenStreetMap, where a newly mapped store isn't a newly opened one), and 7 Brew, whose collector no longer lists most stores' addresses.
+
+To patch a chain by hand, `scripts/refresh_brands.py` replaces just its stores with a chosen source: an All the Places spider (`atp:spider`, or `atp:spider@run` to use an earlier run when a spider has broken), a GeoJSON file (`file:path`), or OpenStreetMap (`osm`, which falls back to QLever's copy of OpenStreetMap when the Overpass servers are down). Join sources with `+` to fill one's gaps from another. Stores listed without coordinates are located from their addresses with the Census Bureau's batch geocoder.
 
 ```bash
-python3 scripts/refresh_brands.py "Dutch Bros=atp:dutch_bros" "Erewhon=osm"
+python3 scripts/refresh_brands.py "Erewhon=osm"
 ```
 
-Each chain's source in the current data, where it isn't the original snapshot:
+Chains not on the monthly All the Places refresh, and where their stores come from:
 
 | Chains | Source |
 |---|---|
-| Dutch Bros, The Fresh Market, Tesla (stores and service centers) | All the Places, Oct 17, 2026 run |
-| Equinox | All the Places, Oct 17, 2026 run, located by address |
+| Lowe's | All the Places, Jul 2026 run; the tracker keeps it until the collector recovers (it has returned almost nothing since) |
 | 7 Brew | All the Places, Oct 17, 2026 run, with addresses read from each store's page URL and located; plus OpenStreetMap stores more than half a mile from any of those |
-| Lowe's | All the Places, Jul 11, 2026 run (its spider has returned almost nothing since) |
-| Erewhon, Central Market (Texas only), Alo Yoga, Aritzia, RH, Crate & Barrel | OpenStreetMap through QLever, Oct 29, 2026 (Overpass was down) |
+| Erewhon, Central Market (Texas only), Alo Yoga, Aritzia, RH, Crate & Barrel | OpenStreetMap through QLever, Oct 29, 2026 |
 
-OpenStreetMap is thin for some of these: Alo Yoga and Aritzia show about a third to a half of their US stores, so a missing one there means less than a missing Lowe's.
+OpenStreetMap is thin for some of these: Alo Yoga and Aritzia show about a third to a half of their US stores, so a missing one there means less than a missing Lowe's. `data/store_runs.json` records which run and collector every tracked chain last came from.
 
 ## Hosting
 
@@ -165,11 +169,14 @@ index.html                 page shell
 assets/app.css             styles (light and dark)
 assets/app.js              map, scoring, lenses, reports
 data/stores.json           bundled store locations
+data/changes.json          store openings and closings found by comparing All the Places runs
+data/store_runs.json       which run and collector each tracked chain last came from
 data/upcoming.json         announced openings
-data/tracts.json           census tract data (column layout)
-data/counties.json         county Census, population, permits and Zillow data
-data/zips.json             ZIP code Zillow data (column layout)
+data/tracts.json           census tract data, jobs and hazard risk (column layout)
+data/counties.json         county Census, population, permits, jobs, Zillow, listings, apartment and hazard data
+data/zips.json             ZIP code Zillow and Realtor.com data (column layout)
+data/landlord.json         state rent control and eviction rules, with sources
 data/counties-10m.json     county outlines (us-atlas)
-scripts/                   data builders and the Pages build step
-.github/workflows/         deploy and monthly data refresh
+scripts/                   data builders, the store tracker, the weight check and the Pages build step
+.github/workflows/         deploy, and the monthly market and store refreshes
 ```
