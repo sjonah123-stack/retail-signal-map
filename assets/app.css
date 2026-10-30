@@ -327,7 +327,7 @@ details.add .field { margin-bottom: 10px; }
 .chains .cn b { font-weight: 650; }
 .chains .cn small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chains .cd { color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.chains a.go { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--muted); }
+.chains a.go, .store-card a.go { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--muted); }
 .chains a.go:hover { background: var(--chip); color: var(--ink); }
 .chains a.go svg { width: 14px; height: 14px; }
 .chains li.far { opacity: .72; }
@@ -475,3 +475,9 @@ details.add .field { margin-bottom: 10px; }
 .addr-pin svg circle { fill: #fff; stroke: none; }
 .addr-tip { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); font: 600 12px/1.2 var(--font); padding: 4px 8px; }
 .addr-tip::before { border-top-color: var(--line); }
+.leaflet-container.over-dot { cursor: pointer; }
+.store-card { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; line-height: 1.4; }
+.store-card .sw { flex: none; width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; }
+.store-card > div { flex: 1; min-width: 0; }
+.store-card small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.store-card .go { flex: none; margin-top: 2px; }

@@ -1293,9 +1293,11 @@ function flyToSpot(lat, lon, zoom) {
   map.flyTo(target, zoom, { duration: 0.8 });
 }
 // pin: the spot is an exact address or coordinates the visitor typed, so it's marked with a pin rather than a dot.
-function openReport(lat, lon, label, pin = false) {
+// store: the dot the visitor clicked; a pinned link reopens on the store that sits there.
+function openReport(lat, lon, label, pin = false, store = null) {
   if (!stores.length) return;
-  reportAt = { lat, lon, label: label || null, pin };
+  if (pin && !store) store = storeNear(lat, lon);
+  reportAt = { lat, lon, label: label || null, pin, store };
   drawSite();
   renderReport();
   const el = $("report");
@@ -1311,8 +1313,9 @@ function drawSite() {
   if (area) L.polygon(area.latlngs, style).addTo(siteLayer);
   else L.circle([reportAt.lat, reportAt.lon], { ...style, radius: radius * 1609.34 }).addTo(siteLayer);
   if (reportAt.pin) {
+    const col = reportAt.store ? GROUPS[reportAt.store.g].color : "#2a78d6";
     const pin = L.marker([reportAt.lat, reportAt.lon], { pane: "site", interactive: false, keyboard: false,
-      icon: L.divIcon({ className: "addr-pin", html: '<svg viewBox="0 0 24 32" aria-hidden="true"><path d="M12 31s10-11.4 10-19A10 10 0 0 0 2 12c0 7.6 10 19 10 19Z"/><circle cx="12" cy="12" r="4"/></svg>', iconSize: [24, 32], iconAnchor: [12, 31] }) });
+      icon: L.divIcon({ className: "addr-pin", html: `<svg viewBox="0 0 24 32" aria-hidden="true" style="fill:${col}"><path d="M12 31s10-11.4 10-19A10 10 0 0 0 2 12c0 7.6 10 19 10 19Z"/><circle cx="12" cy="12" r="4"/></svg>`, iconSize: [24, 32], iconAnchor: [12, 31] }) });
     if (reportAt.label) pin.bindTooltip(reportAt.label, { permanent: true, direction: "top", offset: [0, -30], className: "addr-tip", interactive: false });
     pin.addTo(siteLayer);
   } else L.circleMarker([reportAt.lat, reportAt.lon], { pane: "site", radius: 6.5, color: "#ffffff", weight: 2.5, fillColor: "#2a78d6", fillOpacity: 1, interactive: false }).addTo(siteLayer);
@@ -1471,8 +1474,23 @@ function renderReport() {
   const f = maxW ? score / maxW : 0;
   const shareTxt = shareLabel(frontier || area ? null : topShare(score));   // national ranks are for the circle
   const title = frontier ? `${score} of ${maxW} early movers within ${where}` : `${score} of ${maxW} signal points within ${where}`;
-  const place = reportAt.label || placeLabel(lat, lon);
-  const sub = [cd?.name, cd?.metro ? cd.metro + " metro" : null].filter(Boolean).map(escapeHtml).join(" · ") || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  const st0 = reportAt.store;
+  const place = st0 ? st0.b : reportAt.label || placeLabel(lat, lon);
+  const sub = [st0 ? (st0.up ? st0.up.place : [st0.city, st0.st].filter(Boolean).join(", ")) : null, cd?.name, cd?.metro ? cd.metro + " metro" : null]
+    .filter(Boolean).map(escapeHtml).join(" · ") || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  // The clicked store: what it counts as, where its location came from, and how many of the chain are nearby.
+  let storeBox = "";
+  if (st0) {
+    const g = GROUPS[st0.g], same = nearbyStores(lat, lon, 0.15).filter(x => x.b === st0.b && !x.extra && distMi(lat, lon, x.lat, x.lon) <= radius).length;
+    const w = frontier ? (roles[st0.g] === "none" ? "not in the Frontier test" : `a ${roles[st0.g]} ${roles[st0.g] === "early" ? "mover" : "anchor"}`)
+      : weights[st0.g] ? `${weights[st0.g]}× in this lens` : "off in this lens";
+    const upd = st0.up ? `${STATUS_LABEL[st0.up.status]}${st0.up.when ? ` · ${escapeHtml(st0.up.when)}` : ""}${st0.up.src && safeUrl(st0.up.src.url) ? ` · <a href="${escapeHtml(st0.up.src.url)}" target="_blank" rel="noopener">${escapeHtml(st0.up.src.name || "source")}</a>` : ""}`
+      : `Location: ${escapeHtml(brandSrc[st0.b] || st0.src || "store data")}`;
+    storeBox = `<div class="store-card"><span class="sw" style="background:${g.color}"></span><div>
+      <b>${escapeHtml(g.name)}</b> signal, ${w}${same > 1 ? ` · ${same} ${escapeHtml(st0.b)} within ${radius} mi` : ""}
+      <small>${upd}</small></div>
+      <a class="go" href="${gmapsStore(st0)}" target="_blank" rel="noopener" aria-label="${escapeHtml(st0.b)} on Google Maps" title="Check on Google Maps">${ICON_EXT}</a></div>`;
+  }
 
   const kpiKeys = LENS_KPIS[lens] || LENS_KPIS.retail;
   const kpis = ta ? `<div class="kpis">${kpiKeys.map((k, i) => `<div class="kpi${i < 3 ? " lead" : ""}"><b>${KPI[k][1](ta)}</b><span>${KPI[k][0]}</span></div>`).join("")}</div>
@@ -1522,11 +1540,12 @@ function renderReport() {
 
   $("report").innerHTML = `
     <div class="rp-head">
-      <div><p class="eyebrow" style="margin-bottom:4px">Site report · ${escapeHtml(LENSES.find(l => l.id === lens).name)}</p>
+      <div><p class="eyebrow" style="margin-bottom:4px">${st0 ? "Store and area report" : "Site report"} · ${escapeHtml(LENSES.find(l => l.id === lens).name)}</p>
         <h2>${escapeHtml(place)}</h2><p class="rp-sub">${sub}</p></div>
       <button class="icon-btn" data-act="close" aria-label="Close site report">${ICON_X}</button>
     </div>
     <div class="rp-body">
+      ${storeBox}
       <div class="rp-score">
         <div class="dial" style="--f:${f.toFixed(3)};--c:${score ? stepColor(f) : "var(--chip)"}"><b>${score}<small>of ${maxW}</small></b></div>
         <div><p class="t">${title}</p><p class="s">${[shareTxt, `${fmt(within)} tracked stores nearby`].filter(Boolean).join(" · ")}</p></div>
@@ -1561,7 +1580,43 @@ $("report").addEventListener("click", e => {
   else if (e.target.closest("[data-ta]")) { taMode = +e.target.closest("[data-ta]").dataset.ta; renderReport(); drawSite(); syncUrl(); }
   else if (act === "cmp" && reportAt) toggleCompare(reportAt.lat, reportAt.lon, reportAt.label || placeLabel(reportAt.lat, reportAt.lon));
 });
-map.on("click", e => openReport(e.latlng.lat, e.latlng.lng));
+// A store dot or announced opening drawn within a few pixels of a map point, so a click on a dot opens that store.
+function storeAtPoint(latlng, pt) {
+  const z = map.getZoom();
+  if (z < 7) return null;
+  let best = null, bd = Infinity;
+  const consider = (s, hit) => {
+    const d = map.latLngToContainerPoint([s.lat, s.lon]).distanceTo(pt);
+    if (d <= hit && d < bd) { bd = d; best = s; }
+  };
+  const dot = (z < 8 ? 2.3 : z < 10 ? 3.2 : z < 13 ? 4.2 : 5.5) + 4;
+  if (showStores) for (const s of nearbyStores(latlng.lat, latlng.lng, 0.02)) if (!s.extra && groupVisible(s.g)) consider(s, dot);
+  if (showUpcoming) for (const u of upcoming)
+    if (u.lat != null && Math.abs(u.lat - latlng.lat) < 0.1 && Math.abs(u.lon - latlng.lng) < 0.1) consider({ ...u, up: u, extra: true }, (z < 10 ? 6 : 8) + 4);
+  return best;
+}
+// The store at a spot (within about 50 m), for reopening a store's report from a link.
+function storeNear(lat, lon) {
+  let best = null, bd = 0.03;
+  for (const s of nearbyStores(lat, lon, 0.01)) { const d = distMi(lat, lon, s.lat, s.lon); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
+const storeLabel = s => [s.b, s.up ? s.up.place : [s.city, s.st].filter(Boolean).join(", ")].filter(Boolean).join(", ");
+function openStore(s) {
+  openReport(s.lat, s.lon, storeLabel(s), true, s);
+  flyToSpot(s.lat, s.lon, Math.max(map.getZoom(), 13));
+}
+map.on("click", e => {
+  const s = storeAtPoint(e.latlng, e.containerPoint);
+  if (s) openStore(s); else openReport(e.latlng.lat, e.latlng.lng);
+});
+let hoverT = 0;
+map.on("mousemove", e => {
+  const now = performance.now();
+  if (now - hoverT < 40) return;
+  hoverT = now;
+  map.getContainer().classList.toggle("over-dot", !!storeAtPoint(e.latlng, e.containerPoint));
+});
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && cmpOpen) { closeCompare(); return; }
   if (e.key === "Escape" && reportAt) closeReport();
