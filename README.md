@@ -18,12 +18,12 @@ Chains like these spend heavily on site research before they sign a lease. Where
 ## What it does
 
 - **Investment lenses.** Multifamily, Single-family, Retail signal and Frontier each set a chain weighting and starting filters for that buyer. The weightings are fitted to what each buyer is looking for (see [How the weights were set](#how-the-weights-were-set)). Everything stays adjustable.
-- **Top areas.** A ranked list of the best-scoring areas, filtered by household income, price-to-income, renter share, county population growth, rent growth and apartment pipeline. Multifamily and Single-family rank by an overall score, half signal score and half market momentum (see [Overall rank](#overall-rank)). Or rank by signal score, population growth, domestic migration, rent growth, income, affordability, gross yield or least new supply. Export the list to CSV.
-- **Site reports.** Click anywhere (or search an address) for a report on that spot: signal score and national percentile; trade-area rent, renter share, rental vacancy, apartment share, income, home value, price-to-income, gross yield, age of housing, education and density; the ZIP code's Zillow rent and home value trends; county population growth, domestic migration, building permits and apartment pipeline; and every chain nearby with Google Maps links to confirm each store. Reports print cleanly to PDF.
+- **Top areas.** A ranked list of the best-scoring areas, filtered by household income, price-to-income, renter share, county population growth, rent growth, apartment pipeline, job growth and natural hazard risk. Multifamily and Single-family rank by an overall score, half signal score and half market momentum (see [Overall rank](#overall-rank)). Or rank by signal score, population growth, domestic migration, rent growth, job growth, income, affordability, gross yield, least new supply or lowest hazard risk. Export the list to CSV.
+- **Site reports.** Click anywhere (or search an address) for a report on that spot: signal score and national percentile; trade-area rent, renter share, rental vacancy, apartment share, income, home value, price-to-income, gross yield, age of housing, education, density and jobs located there; the ZIP code's Zillow rent and home value trends and Realtor.com for-sale listings (days on market, inventory change, price cuts); county population growth, domestic migration, jobs and wages, apartment vacancy and concessions, building permits and apartment pipeline; costs and risk (effective property tax rate, FEMA natural hazard risk and expected losses, and the state's rent control and eviction rules); and every chain nearby with Google Maps links to confirm each store. Reports print cleanly to PDF.
 - **Compare.** Pin up to four sites from their reports and see them side by side, with the best value in each row highlighted. Export to CSV or print.
 - **Score a deal list.** Upload a CSV of properties (addresses or coordinates). Every site is located, scored under the current lens and ranked, with your own columns (units, price) carried through to the export. The list stays in your browser.
 - **Housing supply.** Census building permits by county: apartment and single-family units permitted, and the apartment pipeline (three years of 5+ unit permits as a share of existing apartment stock) to flag supply risk.
-- **Map overlays.** Color the map by any neighborhood, county or ZIP metric. Neighborhood metrics draw by census tract when zoomed in and by county when zoomed out; Zillow trends draw by ZIP code over county shading.
+- **Map overlays.** Color the map by any neighborhood, county or ZIP metric, including job and wage growth, jobs per household, property tax rates, hazard risk, for-sale inventory and apartment vacancy and concessions. Neighborhood metrics draw by census tract when zoomed in and by county when zoomed out; Zillow and Realtor.com trends draw by ZIP code over county shading.
 - **Shareable links.** The address bar always holds the current view, lens, filters and open report. Copy link and send it.
 - **Announced openings.** Coming-soon stores from company lists and local reporting, shown on the map and optionally counted in scores. Add your own.
 - **Your own chains.** Add any brand as a new signal or inside an existing one, then load its stores from OpenStreetMap, an All the Places file or a CSV.
@@ -38,6 +38,13 @@ Chains like these spend heavily on site research before they sign a lease. Where
 | Population, domestic migration | Census population estimates, vintage 2025 | County | Yearly (spring) |
 | Typical home value and rent, 1/3/5-year change | Zillow Home Value Index and Zillow Observed Rent Index | County and ZIP code | Monthly |
 | Units permitted, single-family and 5+ unit buildings | Census Building Permits Survey, 2023–2025 | County | Yearly (spring) |
+| Jobs and average weekly wage, change over the year | [BLS Quarterly Census of Employment and Wages](https://www.bls.gov/cew/), 2026 Q1 | County | Quarterly (about 6 months behind) |
+| Jobs located in each neighborhood | [Census LEHD LODES](https://lehd.ces.census.gov/data/), 2021–2023 by state (none for Alaska) | Census tract | Yearly |
+| Property taxes (median taxes paid ÷ median home value) | Census American Community Survey 5-year, 2020–2024 | Census tract and county | Yearly (December) |
+| Natural hazard risk score, expected building losses, costliest hazard | [FEMA National Risk Index](https://hazards.fema.gov/nri/), December 2025 release | Census tract and county | Irregular |
+| For-sale listings: days on market, inventory change, price cuts | [Realtor.com research data](https://www.realtor.com/research/data/) | ZIP code and county | Monthly |
+| Apartment vacancy and concessions | [Apartment List research data](https://www.apartmentlist.com/research/category/data-rent-estimates) | County where published, else metro | Monthly |
+| Rent control, just-cause eviction and notice before filing for unpaid rent | Researched from statutes, state agencies, the NMHC 2026 chart and law firm summaries, with sources per state in `data/landlord.json` | State | By hand; as of Oct 30, 2026 |
 
 Trade-area figures combine the census tracts centered within the radius, weighted by households. They're averages of tract medians: a solid screen, not a true median.
 
@@ -85,10 +92,11 @@ Because chains mark proven demand but not momentum, Multifamily and Single-famil
 |---|---|
 | Net domestic migration, 2021–25 (county) | Net domestic migration, 2021–25 (county) |
 | Population growth last year (county) | Population growth last year (county) |
+| Job growth over the year (county) | Job growth over the year (county) |
 | Rent change, 1 year (ZIP, else county) | Home value change, 1 year (ZIP, else county) |
-| Apartment pipeline (county; less new supply ranks higher) | |
+| Apartment pipeline (county; less new supply ranks higher) | For-sale listings change, 1 year (county; fewer listings ranks higher) |
 
-County measures are ranked against every county weighted by population, so 50 is where a typical American lives; ZIP measures against every ZIP with Zillow data. With chains alone, 16 Multifamily areas tied at the maximum; the overall score spreads the top from 82 down to 71. The map's shading is still the signal score. A 1-year ZIP change can be noisy, so the site report lists each part's percentile.
+County measures are ranked against every county weighted by population, so 50 is where a typical American lives; ZIP measures against every ZIP with Zillow data. With chains alone, 16 Multifamily areas tied at the maximum; the overall score spreads the top 25 from 88 down to 73. Each cluster of nearby areas is represented by its best-ranked spot, not its busiest. The map's shading is still the signal score. A 1-year ZIP change can be noisy, so the site report lists each part's percentile.
 
 To recheck the weights after a data refresh (it prints each group's fit next to its current weight, and each preset's ranking quality):
 

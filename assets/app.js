@@ -118,7 +118,7 @@ const PRESETS = [
 ];
 
 // A lens is a starting point: a weighting, a scoring mode and a set of filters for one kind of buyer.
-const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999, pipe: 0 };
+const NO_FILTERS = { inc: 0, pti: 0, renter: 0, popg: -999, zori1: -999, pipe: 0, empg: -999, risk: 0 };
 const LENSES = [
   { id: "mf", name: "Multifamily", short: "Well-paid renters, growing counties", preset: "mf", mode: "score", sort: "overall", filters: { renter: 30, popg: 0 },
     icon: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',
@@ -134,9 +134,9 @@ const LENSES = [
     desc: "Areas where early movers (Dutch Bros, ALDI, Home Depot or Lowe's, regional grocers, drive-thrus) have arrived but late anchors (Costco, Trader Joe's, Whole Foods, Life Time, premium preschools) haven't. These areas have grown faster than the rest of their state while prices stayed lower." },
 ];
 const LENS_KPIS = {
-  mf: ["rent", "renter", "vac", "mf5", "inc", "yld", "hv", "pti", "yb", "bach", "dens", "pop"],
-  sf: ["hv", "pti", "inc", "yb", "renter", "bach", "rent", "yld", "dens", "vac", "mf5", "pop"],
-  retail: ["inc", "hv", "rent", "bach", "pti", "renter", "yld", "dens", "yb", "vac", "mf5", "pop"],
+  mf: ["rent", "renter", "vac", "mf5", "inc", "yld", "hv", "pti", "yb", "bach", "dens", "pop", "jobs", "taxr", "risk"],
+  sf: ["hv", "pti", "inc", "yb", "renter", "bach", "rent", "yld", "dens", "vac", "mf5", "pop", "taxr", "risk", "jobs"],
+  retail: ["inc", "hv", "rent", "bach", "pti", "renter", "yld", "dens", "yb", "vac", "mf5", "pop", "jobs", "taxr", "risk"],
 };
 const LENS_CHIPS = { mf: ["renter", "rent", "popg", "mfpipe"], sf: ["inc", "pti", "popg"], retail: ["inc", "hv", "popg"], frontier: ["inc", "pti", "popg"] };
 
@@ -201,6 +201,17 @@ const METRICS = {
   zhvi5: { name: "Home value change, 5 yr", scope: "c", zip: true, breaks: [10, 20, 30, 40, 55], colors: DIV, tick: T.chg, note: "Zillow Home Value Index, mid-tier homes." },
   zori: { name: "Typical rent (Zillow)", scope: "c", zip: true, breaks: [1000, 1300, 1600, 2000, 2600], colors: VIOLET, tick: T.dollars, note: "Zillow Observed Rent Index, all rental types." },
   zhvi: { name: "Typical home value (Zillow)", scope: "c", zip: true, breaks: [150000, 250000, 350000, 500000, 750000], colors: VIOLET, tick: T.money, note: "Zillow Home Value Index, mid-tier homes." },
+  empg1: { name: "Job growth, 1 yr", scope: "c", breaks: [-1, 0, 1, 2, 3], colors: DIV, tick: T.chg, note: "Change in jobs from the same quarter a year earlier, all industries (BLS QCEW)." },
+  wageg1: { name: "Wage growth, 1 yr", scope: "c", breaks: [1, 2, 3, 4, 5], colors: DIV, tick: T.chg, note: "Change in the average weekly wage from the same quarter a year earlier (BLS QCEW)." },
+  jph: { name: "Jobs per household", scope: "t", county: false, breaks: [0.25, 0.5, 1, 2, 4], colors: BLUE, tick: String, note: "Jobs located in the neighborhood per household living there: above 1 marks a job center (Census LEHD)." },
+  taxr: { name: "Property tax rate", scope: "t", county: true, breaks: [0.6, 0.9, 1.2, 1.6, 2], colors: DIV_R, tick: v => v + "%", note: "Median property taxes ÷ median home value, owner-occupied homes: an effective rate." },
+  risk: { name: "Natural hazard risk", scope: "t", county: true, breaks: [20, 40, 60, 80, 95], colors: DIV_R, tick: String, note: "FEMA National Risk Index score, 0–100: how the area ranks nationally on expected losses from natural hazards, adjusted for vulnerability and resilience." },
+  lossr: { name: "Expected hazard losses", scope: "t", county: true, breaks: [500, 1000, 1500, 2500, 4000], colors: DIV_R, tick: v => "$" + fmt(v), note: "Expected yearly building losses from natural hazards per $1M of building value (FEMA National Risk Index). A rough guide to insurance pressure." },
+  dom: { name: "Days on market, for sale", scope: "c", zip: true, breaks: [40, 55, 70, 85, 100], colors: DIV_R, tick: String, note: "Median days on market for homes listed for sale (Realtor.com)." },
+  invg: { name: "For-sale listings, 1 yr change", scope: "c", zip: true, breaks: [-10, 0, 10, 20, 35], colors: DIV_R, tick: T.chg, note: "Change in active for-sale listings from a year earlier; rising inventory gives buyers more leverage (Realtor.com)." },
+  prc: { name: "Listings with a price cut", scope: "c", zip: true, breaks: [12, 16, 20, 24, 28], colors: DIV_R, tick: T.pct, note: "Share of active for-sale listings with a price reduction (Realtor.com)." },
+  avac: { name: "Apartment vacancy", scope: "c", breaks: [5, 6, 7, 8, 9], colors: DIV_R, tick: T.pct, note: "Apartment List vacancy index: vacant units ÷ all units in listed apartment properties. County where published, otherwise the metro area." },
+  conc: { name: "Apartment concessions", scope: "c", breaks: [10, 20, 30, 40, 50], colors: DIV_R, tick: T.pct, note: "Share of apartment listings offering a concession, such as free rent (Apartment List). County where published, otherwise the metro area." },
 };
 const hasMetric = k => typeof k === "string" && Object.hasOwn(METRICS, k);   // keys arrive from links, so skip inherited names
 const COLOR_GROUPS = [
@@ -208,6 +219,10 @@ const COLOR_GROUPS = [
   ["County growth (Census estimates)", ["popg", "popg1", "dmig"]],
   ["Housing supply (Census permits)", ["mfpipe", "mfp", "sfp"]],
   ["Market trends by ZIP and county (Zillow)", ["zori1", "zori3", "zhvi1", "zhvi5", "zori", "zhvi"]],
+  ["Jobs (BLS, Census LEHD)", ["empg1", "wageg1", "jph"]],
+  ["For-sale listings (Realtor.com)", ["dom", "invg", "prc"]],
+  ["Apartments (Apartment List)", ["avac", "conc"]],
+  ["Costs and risk (Census, FEMA)", ["taxr", "risk", "lossr"]],
 ];
 
 // ================= State =================
@@ -628,6 +643,9 @@ function derive(d, areaM2) {
     bach: d.ed ? (d.bachN || 0) / d.ed * 100 : null,
     vac: rnt != null && d.vfr != null && (rnt + d.vfr + (d.vrno || 0)) > 0 ? d.vfr / (rnt + d.vfr + (d.vrno || 0)) * 100 : null,
     mf5: d.units ? (d.mf5n || 0) / d.units * 100 : null,
+    taxr: d.tax && d.hv ? d.tax / d.hv * 100 : null,   // effective property tax rate
+    risk: d.risk ?? null, lossr: d.lossr ?? null,
+    jph: d.jobs != null && occ ? d.jobs / occ : null,
   };
   if (areaM2) out.dens = d.pop / (areaM2 / 2589988);
   return out;
@@ -690,14 +708,16 @@ function setCountyData(j) {
     if (d.mf5n && d.p5_36 != null) c.mfpipe = d.p5_36 / d.mf5n * 100;
     cdata.set(fips, c);
   }
-  for (const k of ["dmig", "popg1", "mfpipe"]) setRanking(k, [...cdata.values()].map(c => [c[k], c.pep || c.pop]));
+  // ZIP listing counts swing too much year to year to rank on, so inventory change is ranked by county.
+  for (const k of ["dmig", "popg1", "mfpipe", "empg1", "invg"]) setRanking(k, [...cdata.values()].map(c => [c[k], c.pep || c.pop]));
   countyCache.clear();
 }
 function setTracts(j) {
   const c = j.cols, n = j.n, list = new Array(n);
   for (let i = 0; i < n; i++) {
     const d = { pop: c.pop[i], inc: c.inc[i], hv: c.hv[i], rent: c.rent[i], occ: c.occ[i], rnt: c.rnt[i], ed: c.ed[i], bachN: c.bachN[i],
-      vfr: c.vfr[i], vrno: c.vrno[i], units: c.units[i], mf5n: c.mf5n[i], yb: c.yb[i] };
+      vfr: c.vfr[i], vrno: c.vrno[i], units: c.units[i], mf5n: c.mf5n[i], yb: c.yb[i],
+      tax: c.tax?.[i], jobs: c.jobs?.[i], risk: c.risk?.[i], lossr: c.lossr?.[i], haz: c.haz?.[i] };
     const area = c.area_k[i] * 1000;
     list[i] = { lat: c.lat[i] / 1e4, lon: c.lon[i] / 1e4, area, c: j.counties[c.c[i]], d, m: derive(d, area) };
   }
@@ -714,7 +734,7 @@ function setZips(j) {
   const c = j.cols, list = [];
   for (let i = 0; i < j.n; i++) {
     const z = { zip: String(c.zip[i]), lat: c.lat[i] / 1e4, lon: c.lon[i] / 1e4, area: c.area_k[i] * 1000 };
-    for (const k of ["zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3"]) z[k] = c[k][i];
+    for (const k of ["zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3", "dom", "invg", "lpg", "prc"]) z[k] = c[k]?.[i] ?? null;
     z.rm = Math.sqrt(z.area / Math.PI);
     list.push(z);
   }
@@ -775,7 +795,8 @@ function tradeArea(lat, lon, R) {
   const key = Math.round(lat * 40) + ":" + Math.round(lon * 40) + ":" + R;
   if (taCache.has(key)) return taCache.get(key);
   let n = 0, pop = 0, area = 0, incW = 0, incH = 0, hvW = 0, hvO = 0, rentW = 0, rentR = 0, ed = 0, bachN = 0, occ = 0, rnt = 0,
-    vfr = 0, vrno = 0, units = 0, mf5n = 0, ybW = 0, ybU = 0;
+    vfr = 0, vrno = 0, units = 0, mf5n = 0, ybW = 0, ybU = 0, jobs = 0, jobsN = 0, taxW = 0, taxO = 0, riskW = 0, lossW = 0, riskH = 0;
+  const hazW = new Map();
   const span = R / 69 + 0.05;
   for (let bi = Math.floor((lat - span) / SB); bi <= Math.floor((lat + span) / SB); bi++)
     for (let bj = Math.floor((lon - span * 1.6) / SB); bj <= Math.floor((lon + span * 1.6) / SB); bj++) {
@@ -790,6 +811,12 @@ function tradeArea(lat, lon, R) {
         if (x.yb && x.units) { ybW += x.yb * x.units; ybU += x.units; }
         ed += x.ed || 0; bachN += x.bachN || 0; occ += x.occ || 0; rnt += x.rnt || 0;
         vfr += x.vfr || 0; vrno += x.vrno || 0; units += x.units || 0; mf5n += x.mf5n || 0;
+        if (x.jobs != null) { jobs += x.jobs; jobsN++; }
+        if (x.tax && owners > 0) { taxW += x.tax * owners; taxO += owners; }
+        if (x.risk != null && x.occ) {
+          riskW += x.risk * x.occ; lossW += (x.lossr || 0) * x.occ; riskH += x.occ;
+          if (x.haz != null) hazW.set(x.haz, (hazW.get(x.haz) || 0) + (x.lossr || 0) * x.occ);
+        }
       }
     }
   let out = null;
@@ -798,7 +825,11 @@ function tradeArea(lat, lon, R) {
     out = { n, pop, inc, hv, rent, pti: inc && hv ? hv / inc : null, yld: hv && rent ? rent * 12 / hv * 100 : null,
       bach: ed ? bachN / ed * 100 : null, renter: occ ? rnt / occ * 100 : null,
       vac: rnt + vfr + vrno > 0 ? vfr / (rnt + vfr + vrno) * 100 : null, mf5: units ? mf5n / units * 100 : null,
-      yb: ybU ? ybW / ybU : null, dens: area ? pop / (area / 2589988) : null };
+      yb: ybU ? ybW / ybU : null, dens: area ? pop / (area / 2589988) : null,
+      jobs: jobsN ? jobs : null, jph: jobsN && occ ? jobs / occ : null,
+      taxr: taxO && hv ? taxW / taxO / hv * 100 : null,
+      risk: riskH ? riskW / riskH : null, lossr: riskH ? lossW / riskH : null,
+      haz: hazW.size ? [...hazW].reduce((a, b) => b[1] > a[1] ? b : a)[0] : null };
   }
   if (taCache.size > 50000) taCache.clear();
   taCache.set(key, out);
@@ -810,7 +841,7 @@ function areaDemo(lat, lon) {
   const z = zipAt(lat, lon);
   const pick = k => ta?.[k] ?? cd?.[k] ?? null;
   const d = { ta, cty, z, inc: pick("inc"), hv: pick("hv"), rent: pick("rent"), pti: pick("pti"), yld: pick("yld"), renter: pick("renter"),
-    popg: cd?.popg ?? null, ...marketOf(cd, z) };
+    taxr: pick("taxr"), risk: pick("risk"), popg: cd?.popg ?? null, ...marketOf(cd, z) };
   d.mom = momentum(d);
   return d;
 }
@@ -820,11 +851,14 @@ function areaDemo(lat, lon) {
 // rest of the US (counties weighted by population, ZIP codes equally) and the ranks averaged, so 50 is a typical
 // place. Chain clusters mark proven demand but not momentum, so the investor lenses rank Top areas on both.
 const MOMENTUM = {
-  mf: [["dmig", "migration"], ["popg1", "population growth last year"], ["zori1", "1-year rent change"], ["mfpipe", "apartment pipeline", -1]],
-  sf: [["dmig", "migration"], ["popg1", "population growth last year"], ["zhvi1", "1-year home value change"]],
+  mf: [["dmig", "migration"], ["popg1", "population growth last year"], ["empg1", "job growth"], ["zori1", "1-year rent change"],
+    ["mfpipe", "apartment pipeline", -1]],
+  sf: [["dmig", "migration"], ["popg1", "population growth last year"], ["empg1", "job growth"], ["zhvi1", "1-year home value change"],
+    ["invg", "for-sale listings change", -1]],
 };
 const OVERALL_MIX = 0.5;   // share of the overall rank that comes from the signal score; the rest is momentum
 const marketOf = (cd, z) => ({ dmig: cd?.dmig ?? null, popg1: cd?.popg1 ?? null, mfpipe: cd?.mfpipe ?? null,
+  empg1: cd?.empg1 ?? null, invg: cd?.invg ?? null,
   zori1: z?.zori1 ?? cd?.zori1 ?? null, zhvi1: z?.zhvi1 ?? cd?.zhvi1 ?? null });
 const rankings = {};
 function setRanking(k, pairs) {
@@ -854,6 +888,7 @@ const nth = p => { const n = Math.min(99, Math.max(1, Math.round(p))); return n 
 
 async function loadMarket() {
   setMarketPill("busy", "Loading market data");
+  getJSON(dataUrl("landlord.json")).then(j => { landlord = j; if (reportAt) renderReport(); }).catch(e => console.warn(e));
   try {
     const [topo, cj, zj] = await Promise.all([getJSON(dataUrl("counties-10m.json")), getJSON(dataUrl("counties.json")), getJSON(dataUrl("zips.json"))]);
     setCounties(topo); setCountyData(cj); setZips(zj); buildCountyLayer();
@@ -989,6 +1024,11 @@ function renderLegend() {
   const when = !marketMeta ? ""
     : /^z(ori|hvi)/.test(colorBy) ? ` Through ${monthName(colorBy.startsWith("zori") ? marketMeta.zori : marketMeta.zhvi)}.`
     : ["mfpipe", "mfp", "sfp"].includes(colorBy) ? ` Census building permits, ${colorBy === "mfpipe" ? `${marketMeta.permits - 2}–${marketMeta.permits}` : marketMeta.permits}.`
+    : ["empg1", "wageg1"].includes(colorBy) ? ` ${marketMeta.qcew}.`
+    : colorBy === "jph" ? ` Jobs ${marketMeta.lodes}, households ACS ${marketMeta.acs}.`
+    : ["risk", "lossr"].includes(colorBy) ? ` ${marketMeta.nri} release.`
+    : ["dom", "invg", "prc"].includes(colorBy) ? ` ${monthName(marketMeta.rdc)}.`
+    : ["avac", "conc"].includes(colorBy) ? ` ${monthName(marketMeta.aptlist)}.`
     : m.scope === "t" ? ` ACS ${marketMeta.acs}.` : "";
   note.textContent = `${loading}${m.note}${when} ${level}`.trim();
 }
@@ -1020,9 +1060,11 @@ const CHIP = {
   zhvi1: d => d.zhvi1 != null && `<b>${pct(d.zhvi1)}</b> home value 1-yr`,
   sig: d => d.score != null && `<b>${d.score}/${maxW}</b> signals`,
   mom: d => d.mom && `<b>${Math.round(d.mom.score)}</b> momentum`,
+  empg1: d => d.empg1 != null && `<b>${pct(d.empg1)}</b> jobs`,
+  risk: d => d.risk != null && `<b>${Math.round(d.risk)}</b> hazard risk`,
 };
-const OVERALL_CHIPS = { mf: ["sig", "mom", "dmig", "zori1", "mfpipe"], sf: ["sig", "mom", "dmig", "zhvi1", "pti"] };
-const SORT_ASC = new Set(["pti", "mfpipe"]);   // lower is better
+const OVERALL_CHIPS = { mf: ["sig", "mom", "empg1", "zori1", "mfpipe"], sf: ["sig", "mom", "empg1", "zhvi1", "pti"] };
+const SORT_ASC = new Set(["pti", "mfpipe", "risk"]);   // lower is better
 // Equal scores are common at the top. The investor lenses put the faster-growing county first: chain clusters mark
 // proven demand, not momentum, and store count (the fallback) favors built-out retail hubs.
 const TIE_BY = { mf: "popg", sf: "popg", frontier: "popg" };
@@ -1033,9 +1075,11 @@ function passes(d) {
   if (filt.popg > -999 && !(d.popg >= filt.popg)) return false;
   if (filt.zori1 > -999 && !(d.zori1 >= filt.zori1)) return false;
   if (filt.pipe > 0 && !(d.mfpipe != null && d.mfpipe <= filt.pipe)) return false;
+  if (filt.empg > -999 && !(d.empg1 >= filt.empg)) return false;
+  if (filt.risk > 0 && !(d.risk != null && d.risk <= filt.risk)) return false;
   return true;
 }
-const filtering = () => filt.inc > 0 || filt.pti > 0 || filt.renter > 0 || filt.popg > -999 || filt.zori1 > -999 || filt.pipe > 0;
+const filtering = () => filt.inc > 0 || filt.pti > 0 || filt.renter > 0 || filt.popg > -999 || filt.zori1 > -999 || filt.pipe > 0 || filt.empg > -999 || filt.risk > 0;
 // A ranked row: the overall rank out of 100 when there is one, otherwise the signal score.
 function rankRow(score, ov, chips) {
   const f = ov != null ? ov / 100 : maxW ? score / maxW : 0, of = t => `<span style="color:var(--muted);font-weight:500">/${t}</span>`;
@@ -1061,18 +1105,42 @@ function updateTop() {
   }
   const onlyView = $("inView").checked, bnd = map.getBounds();
   const sep = Math.max(12, radius * 3);
-  const limit = ranked || tie || overall ? 160 : 25;
+  const limit = ranked || tie ? 160 : 25;
   const th = threshold();
   const picks = [];
   let checks = 0;
-  for (let idx = cells.length - 1; idx >= 0 && picks.length < limit && checks < 8000; idx--) {
+  if (overall) {
+    // Spacing areas out keeps the first cell found in each cluster, which for the overall rank would be the busiest
+    // retail spot rather than the best one. So rank a wide pool first, one cell per ~3-mile square, using only the
+    // county and ZIP figures momentum needs (cheap), then space them out and fetch trade areas for the survivors.
+    const pool = [], seen = new Set();
+    for (let idx = cells.length - 1; idx >= 0 && pool.length < 3000; idx--) {
+      const c = cells[idx];
+      if (c.score <= 0 || c.score < th) break;
+      if (onlyView && !bnd.contains([c.lat, c.lon])) continue;
+      const bin = Math.floor(c.lat * 20) * 100000 + Math.floor(c.lon * 20);
+      if (seen.has(bin)) continue;
+      seen.add(bin);
+      pool.push({ c, ov: overallOf(c.score, momentum(marketOf(countyAt(c.lat, c.lon)?.d, zipAt(c.lat, c.lon)))) });
+    }
+    pool.sort((a, b) => (b.ov ?? -1) - (a.ov ?? -1) || b.c.score - a.c.score);
+    for (const { c, ov } of pool) {
+      if (picks.length >= 25 || checks >= 8000) break;
+      if (picks.some(q => distMi(q.c.lat, q.c.lon, c.lat, c.lon) < sep)) continue;
+      checks++;
+      const d = areaDemo(c.lat, c.lon);
+      if (useFilters && !passes(d)) continue;
+      d.score = c.score; d.overall = ov;
+      picks.push({ c, d });
+    }
+  } else for (let idx = cells.length - 1; idx >= 0 && picks.length < limit && checks < 8000; idx--) {
     const c = cells[idx];
     if (c.score <= 0 || c.score < th) break;
     if (onlyView && !bnd.contains([c.lat, c.lon])) continue;
     if (picks.some(p => distMi(p.c.lat, p.c.lon, c.lat, c.lon) < sep)) continue;
     let d = {};
     if (haveDemo) { checks++; d = areaDemo(c.lat, c.lon); if (useFilters && !passes(d)) continue; }
-    d.score = c.score; d.overall = overall ? overallOf(c.score, d.mom) : null;
+    d.score = c.score;
     picks.push({ c, d });
   }
   if (ranked) {
@@ -1086,9 +1154,6 @@ function updateTop() {
   } else if (tie) {
     const v = p => p.d[tie] ?? -1e9;
     picks.sort((a, b) => b.c.score - a.c.score || v(b) - v(a));
-    picks.length = Math.min(picks.length, 25);
-  } else if (overall) {
-    picks.sort((a, b) => (b.d.overall ?? -1) - (a.d.overall ?? -1) || b.c.score - a.c.score);
     picks.length = Math.min(picks.length, 25);
   }
   if (!picks.length) {
@@ -1162,6 +1227,9 @@ const KPI = {
   bach: ["Bachelor's or higher", ta => share(ta.bach)],
   dens: ["People per sq mi", ta => ta.dens ? fmt(Math.round(ta.dens)) : "–"],
   pop: ["People", ta => big(ta.pop)],
+  jobs: ["Jobs located here", ta => big(ta.jobs)],
+  taxr: ["Property tax rate", ta => ta.taxr ? ta.taxr.toFixed(2) + "%" : "–"],
+  risk: ["Hazard risk score", ta => ta.risk != null ? `${Math.round(ta.risk)} of 100` : "–"],
 };
 // The score at an exact point: closest store of each signal, and how many tracked stores sit within the radius.
 function scoreAt(lat, lon) {
@@ -1182,6 +1250,35 @@ function scoreAt(lat, lon) {
 }
 const shareLabel = s => s == null ? "" : s < 1 ? "Top 1% of scored US areas" : s <= 50 ? `Top ${Math.ceil(s)}% of scored US areas` : "Below the median scored area";
 const chg = v => `<span class="${tone(v)}">${pct(v)}</span>`;
+const chgWorse = v => `<span class="${tone(-v)}">${pct(v)}</span>`;   // a rise is bad news (listings, vacancy)
+const ptsWorse = v => v == null ? "–" : `<span class="${tone(-v)}">${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)} pts</span>`;
+const HAZARD_NAMES = { HRCN: "hurricanes", CFLD: "coastal flooding", IFLD: "inland flooding", WFIR: "wildfire", TRND: "tornadoes", HAIL: "hail",
+  SWND: "strong wind", ERQK: "earthquakes", WNTW: "winter weather", HWAV: "heat waves", CWAV: "cold waves", LNDS: "landslides", LTNG: "lightning",
+  ISTM: "ice storms", AVLN: "avalanches", TSUN: "tsunamis", VLCN: "volcanoes" };
+const hazardName = i => i == null ? null : HAZARD_NAMES[marketMeta?.hazards?.[i]] || null;
+const RENT_RULE = { statewide_cap: "Statewide rent cap", local: "Rent control in some localities", allowed: "Allowed, none adopted",
+  preempted: "Rent control banned by state law", none: "No rent control" };
+let landlord = null;   // state landlord-tenant rules (data/landlord.json)
+const stateOf = cd => toAbbr((cd?.name || "").split(", ").pop());
+// Costs an owner carries that the score doesn't see: property taxes, natural hazard exposure and state landlord rules.
+function costRows(ta, cd) {
+  const rows = [];
+  if (ta?.taxr || cd?.taxr) rows.push(["Property tax rate", ta?.taxr ? ta.taxr.toFixed(2) + "%" : "–",
+    `Median property taxes ÷ median home value, trade area${cd?.taxr ? ` · county ${cd.taxr.toFixed(2)}%` : ""}`]);
+  const rk = ta?.risk != null ? ta : cd;
+  if (rk?.risk != null) {
+    const hz = hazardName(rk.haz);
+    rows.push([`Natural hazard risk (FEMA, ${escapeHtml(marketMeta?.nri || "")})`, `${Math.round(rk.risk)} of 100`,
+      `${rk.lossr != null ? `Expected building losses about $${fmt(Math.round(rk.lossr / 10) * 10)} a year per $1M of value` : "National percentile"}${hz ? `, mostly ${hz}` : ""}`]);
+  }
+  const st = stateOf(cd), law = landlord?.states?.[st];
+  if (law) {
+    const src = safeUrl(law.sources?.[0]);
+    rows.push([`Landlord rules, ${st}`, escapeHtml(RENT_RULE[law.rent] || law.rent),
+      `${escapeHtml(law.rent_note)}${law.just_cause ? " Statewide just-cause eviction." : ""}${law.just_cause_note && !law.just_cause ? " " + escapeHtml(law.just_cause_note) : ""} Notice before filing for unpaid rent: ${law.notice == null ? "unclear" : law.notice === 0 ? "none" : law.notice + " days"}.${law.confidence === "low" ? " Unverified." : ""} As of ${escapeHtml(landlord.as_of)}${src ? ` · <a href="${escapeHtml(src)}" target="_blank" rel="noopener">source</a>` : ""}; not legal advice.`]);
+  }
+  return rows;
+}
 function renderReport() {
   if (!reportAt) return;
   const { lat, lon } = reportAt;
@@ -1226,16 +1323,21 @@ function renderReport() {
   const dl = rows => `<dl class="mkt">${rows.map(([t, v, d]) => `<div><dt>${escapeHtml(t)}</dt><dd>${v}</dd>${d ? `<span class="d">${d}</span>` : ""}</div>`).join("")}</dl>`;
   const zp = zipAt(lat, lon);
   const mom = frontier ? null : momentum(marketOf(cd, zp));
-  const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}`).join(", ")}${mom.parts.some(x => x.k === "mfpipe") ? " (less new supply ranks higher)" : ""}. Overall is half the signal score and half momentum.</div>` : "";
+  const mline = mom ? `<div class="verdict"><b>Overall ${overallOf(score, mom)} of 100 · market momentum ${Math.round(mom.score)}</b>Against the rest of the US: ${mom.parts.map((x, i) => `${escapeHtml(x.label)} ${nth(x.p)}${i ? "" : " percentile"}`).join(", ")}${mom.parts.some(x => x.k === "mfpipe" || x.k === "invg") ? " (less new supply ranks higher)" : ""}. Overall is half the signal score and half momentum.</div>` : "";
   const zipRows = [];
   if (zp?.zori) zipRows.push([`Typical rent (${monthName(marketMeta?.zori)})`, dollars(zp.zori), `${chg(zp.zori1)} 1 yr · ${chg(zp.zori3)} 3 yr`]);
   if (zp?.zhvi) zipRows.push([`Typical home value (${monthName(marketMeta?.zhvi)})`, money(zp.zhvi), `${chg(zp.zhvi1)} 1 yr · ${chg(zp.zhvi5)} 5 yr`]);
-  const zipBox = zipRows.length ? `<h3 class="rp-h">Submarket <span>ZIP ${escapeHtml(zp.zip)} · Zillow</span></h3>${dl(zipRows)}` : "";
+  if (zp?.dom != null) zipRows.push([`Homes for sale (Realtor.com, ${monthName(marketMeta?.rdc)})`, `${zp.dom} days`,
+    `median days on market · listings ${chgWorse(zp.invg)} over the year${zp.prc != null ? ` · ${Math.round(zp.prc)}% with a price cut` : ""}`]);
+  const zipBox = zipRows.length ? `<h3 class="rp-h">Submarket <span>ZIP ${escapeHtml(zp.zip)} · Zillow${zp.dom != null ? ", Realtor.com" : ""}</span></h3>${dl(zipRows)}` : "";
 
   const mktRows = [];
   if (cd) {
     if (cd.pep) mktRows.push(["Population", big(cd.pep), `${chg(cd.popg)} since 2020 · ${chg(cd.popg1)} last year`]);
     if (cd.dmig != null) mktRows.push(["Net domestic migration, 2021–25", chg(cd.dmig), "Moves in from other US counties minus moves out, as a share of 2020 population"]);
+    if (cd.emp) mktRows.push([`Jobs (BLS, ${marketMeta?.qcew ?? ""})`, big(cd.emp), `${chg(cd.empg1)} over the year · average wage ${dollars(cd.wage)} a week, ${chg(cd.wageg1)}`]);
+    if (cd.avac != null) mktRows.push([`Apartment vacancy (Apartment List, ${monthName(marketMeta?.aptlist)})`, `${cd.avac.toFixed(1)}%`,
+      `${ptsWorse(cd.avacg)} over the year${cd.conc != null ? ` · ${Math.round(cd.conc)}% of listings offer a concession` : ""}${cd.alLevel === "metro" ? ` · ${escapeHtml(cd.cbsaName || "metro area")} figures` : ""}`]);
     if (cd.p5 != null) mktRows.push([`New supply, permits ${marketMeta?.permits ?? ""}`, `${fmt(cd.p5)} apts`,
       `${fmt(cd.p1)} single-family homes · ${cd.mfpipe != null ? `${cd.mfpipe.toFixed(1)}% of apartment stock permitted over 3 yrs` : "apartment pipeline n/a"}`]);
     if (cd.zori) mktRows.push([`Typical rent (Zillow, ${monthName(marketMeta?.zori)})`, dollars(cd.zori), `${chg(cd.zori1)} 1 yr · ${chg(cd.zori3)} 3 yr`]);
@@ -1244,6 +1346,7 @@ function renderReport() {
   }
   const mkt = mktRows.length ? dl(mktRows)
     : `<p class="rp-fine">${market.counties ? "No county figures for this spot." : market.error ? "County data didn't load." : "Loading county data…"}</p>`;
+  const costs = costRows(ta, cd);
   const pinned = compareIndex(lat, lon) >= 0;
 
   const fline = frontier ? `<div class="verdict${qualifies ? " yes" : ""}"><b>${qualifies ? "Frontier area" : "Not a frontier area"}</b>${lateNear.length ? `Late anchors within ${lateRadius} mi: ${escapeHtml(lateNear.join(", "))}.` : `No late anchors within ${lateRadius} mi.`} Needs ${minEarly}+ early movers and at most ${maxLate} late ${maxLate === 1 ? "anchor" : "anchors"}.</div>` : "";
@@ -1265,6 +1368,7 @@ function renderReport() {
       ${zipBox}
       <h3 class="rp-h">County market${cd?.name ? ` <span>${escapeHtml(cd.name.split(",")[0])}</span>` : ""}</h3>
       ${mkt}
+      ${costs.length ? `<h3 class="rp-h">Costs and risk</h3>${dl(costs)}` : ""}
       ${rowsIn.length ? `<h3 class="rp-h">Within ${radius} mi <span>${rowsIn.length} ${frontier ? "chains" : "signals"}</span></h3><ul class="chains">${rowsIn.map(r => r[1]).join("")}</ul>` : ""}
       ${upRows ? `<h3 class="rp-h">Announced nearby <span>approximate</span></h3><ul class="chains">${upRows}</ul>` : ""}
       ${rowsOut.length ? `<h3 class="rp-h">Missing nearby <span>closest location</span></h3><ul class="chains">${rowsOut.map(r => r[1]).join("")}</ul>` : ""}
@@ -1327,12 +1431,20 @@ const SITE_FIELDS = [
   F("Trade area", "Median year built", s => rnd(s.ta.yb), String),
   F("Trade area", "Bachelor's or higher (%)", s => rnd(s.ta.bach, 1), pctPlain, 1),
   F("Trade area", "People per sq mi", s => rnd(s.ta.dens), fmt),
+  F("Trade area", "Jobs located within radius", s => rnd(s.ta.jobs), big),
+  F("Trade area", "Property tax rate (%)", s => rnd(s.ta.taxr, 2), v => v.toFixed(2) + "%", -1),
+  F("Trade area", "Hazard risk score (0-100)", s => rnd(s.ta.risk), String, -1),
+  F("Trade area", "Expected hazard losses per $1M a year ($)", s => rnd(s.ta.lossr, -1), v => "$" + fmt(v), -1),
+  F("Trade area", "Costliest hazard", s => hazardName(s.ta.haz), null),
   F("ZIP (Zillow)", "ZIP typical rent ($)", s => s.z.zori, dollars),
   F("ZIP (Zillow)", "ZIP rent change 1 yr (%)", s => s.z.zori1, pct, 1),
   F("ZIP (Zillow)", "ZIP rent change 3 yr (%)", s => s.z.zori3, pct, 1),
   F("ZIP (Zillow)", "ZIP typical home value ($)", s => s.z.zhvi, money),
   F("ZIP (Zillow)", "ZIP home value change 1 yr (%)", s => s.z.zhvi1, pct, 1),
   F("ZIP (Zillow)", "ZIP home value change 5 yr (%)", s => s.z.zhvi5, pct, 1),
+  F("ZIP (Realtor.com)", "ZIP days on market, for sale", s => s.z.dom, String, -1),
+  F("ZIP (Realtor.com)", "ZIP for-sale listings change 1 yr (%)", s => s.z.invg, pct, -1),
+  F("ZIP (Realtor.com)", "ZIP listings with a price cut (%)", s => s.z.prc, pctPlain, -1),
   F("County", "County population", s => s.cd.pep, big),
   F("County", "County growth since 2020 (%)", s => s.cd.popg, pct, 1),
   F("County", "County growth last year (%)", s => s.cd.popg1, pct, 1),
@@ -1340,6 +1452,13 @@ const SITE_FIELDS = [
   F("County", "Apartment units permitted, latest year", s => s.cd.p5, fmt),
   F("County", "Single-family homes permitted, latest year", s => s.cd.p1, fmt),
   F("County", "Apartment pipeline, 3 yrs (% of stock)", s => rnd(s.cd.mfpipe, 1), pctPlain, -1),
+  F("County", "County jobs", s => s.cd.emp, big),
+  F("County", "County job growth 1 yr (%)", s => s.cd.empg1, pct, 1),
+  F("County", "Average weekly wage ($)", s => s.cd.wage, dollars),
+  F("County", "Wage growth 1 yr (%)", s => s.cd.wageg1, pct, 1),
+  F("County", "Apartment vacancy (%)", s => s.cd.avac, pctPlain, -1),
+  F("County", "Apartment concessions (% of listings)", s => s.cd.conc, pctPlain, -1),
+  F("County", "Landlord rules (state)", s => RENT_RULE[landlord?.states?.[stateOf(s.cd)]?.rent] ?? null, null),
   F("County", "County Zillow rent ($)", s => s.cd.zori, dollars, 0, false),
   F("County", "County Zillow rent change 1 yr (%)", s => s.cd.zori1, pct, 1, false),
   F("County", "County Zillow home value ($)", s => s.cd.zhvi, money, 0, false),
@@ -1652,9 +1771,9 @@ function applyLens(id) {
 }
 function setFilterInputs() {
   $("fInc").value = filt.inc; $("fPti").value = filt.pti; $("fRenter").value = filt.renter; $("fPop").value = filt.popg; $("fRent").value = filt.zori1;
-  $("fPipe").value = filt.pipe; $("sortBy").value = sortBy;
+  $("fPipe").value = filt.pipe; $("fJobs").value = filt.empg; $("fRisk").value = filt.risk; $("sortBy").value = sortBy;
 }
-[["fInc", "inc"], ["fPti", "pti"], ["fRenter", "renter"], ["fPop", "popg"], ["fRent", "zori1"], ["fPipe", "pipe"]].forEach(([id, k]) =>
+[["fInc", "inc"], ["fPti", "pti"], ["fRenter", "renter"], ["fPop", "popg"], ["fRent", "zori1"], ["fPipe", "pipe"], ["fJobs", "empg"], ["fRisk", "risk"]].forEach(([id, k]) =>
   $(id).addEventListener("change", e => { filt[k] = +e.target.value; updateTop(); renderLensDesc(); syncUrl(); }));
 $("sortBy").addEventListener("change", e => { sortBy = e.target.value; updateTop(); renderLensDesc(); syncUrl(); });
 $("inView").addEventListener("change", updateTop);
@@ -1810,13 +1929,13 @@ function writeUrl() {
     if (roles.some((r, i) => r !== (DEFAULT_ROLE[GROUPS[i].name] || "none"))) p.set("roles", roles.map(r => r[0]).join(""));
     if (minEarly !== 4 || maxLate !== 0 || lateRadius !== 10) p.set("fr", `${minEarly}.${maxLate}.${lateRadius}`);
   }
-  if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe].join("_"));
+  if (Object.keys(f).some(k => f[k] !== filt[k])) p.set("f", [filt.inc, filt.pti, filt.renter, filt.popg, filt.zori1, filt.pipe, filt.empg, filt.risk].join("_"));
   if (sortBy !== (L0.sort || "score")) p.set("sort", sortBy);
   if (reportAt) p.set("at", `${reportAt.lat.toFixed(5)},${reportAt.lon.toFixed(5)}`);
   if (compare.length) p.set("cmp", compare.map(c => `${c.lat.toFixed(5)},${c.lon.toFixed(5)},${encodeURIComponent(c.label)}`).join("|"));
   history.replaceState(null, "", "#" + p.toString());
 }
-const SORTS = ["overall", "score", "popg", "dmig", "zori1", "inc", "pti", "yld", "mfpipe"];
+const SORTS = ["overall", "score", "popg", "dmig", "zori1", "empg1", "inc", "pti", "yld", "mfpipe", "risk"];
 function readUrl() {
   const p = new URLSearchParams(location.hash.slice(1));
   applyLens(LENSES.some(l => l.id === p.get("lens")) ? p.get("lens") : "mf");
@@ -1834,7 +1953,9 @@ function readUrl() {
   const f = p.get("f");
   if (f) {
     const v = f.split("_").map(Number);
-    if ((v.length === 5 || v.length === 6) && v.every(isFinite)) filt = { inc: v[0], pti: v[1], renter: v[2], popg: v[3], zori1: v[4], pipe: v[5] || 0 };
+    // Older links carry 5 or 6 values; filters added since default to off.
+    if (v.length >= 5 && v.length <= 8 && v.every(isFinite))
+      filt = { inc: v[0], pti: v[1], renter: v[2], popg: v[3], zori1: v[4], pipe: v[5] || 0, empg: v[6] ?? -999, risk: v[7] || 0 };
   }
   const sort = p.get("sort");
   if (SORTS.includes(sort) && (sort !== "overall" || MOMENTUM[lens])) sortBy = sort;

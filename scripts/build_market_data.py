@@ -9,13 +9,19 @@ Everything comes from free bulk downloads that need no API key:
   - County and ZIP home values (ZHVI) and rents (ZORI) (Zillow Research)
   - ZIP code (ZCTA) internal points and land area (Census Gazetteer)
   - County boundaries (us-atlas, from Census cartographic files)
+  - County jobs and wages, latest quarter and change over the year (BLS QCEW)
+  - Jobs located in each tract (Census LEHD LODES workplace file)
+  - Natural hazard risk and expected building losses by tract and county (FEMA National Risk Index)
+  - For-sale listings: inventory, days on market, price cuts by ZIP and county (Realtor.com research data)
+  - Apartment vacancy and concessions by county and metro (Apartment List research data)
+  - County to metro area (NBER copy of the Census CBSA delineation)
 
 Usage:
   python3 scripts/build_market_data.py [--acs auto] [--pep auto] [--cache .cache]
 
 Writes data/tracts.json, data/counties.json, data/zips.json and data/counties-10m.json.
 """
-import argparse, csv, hashlib, io, json, os, re, sys, urllib.request, zipfile
+import argparse, csv, gzip, hashlib, io, json, os, re, sys, urllib.parse, urllib.request, zipfile
 from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +37,16 @@ ZHVI_URL = ZILLOW + "zhvi/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv
 ZORI_URL = ZILLOW + "zori/County_zori_uc_sfrcondomfr_sm_month.csv"
 ZHVI_ZIP_URL = ZILLOW + "zhvi/Zip_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
 ZORI_ZIP_URL = ZILLOW + "zori/Zip_zori_uc_sfrcondomfr_sm_month.csv"
+QCEW_URL = "https://data.bls.gov/cew/data/api/{y}/{q}/industry/10.csv"   # all industries, every area
+LODES_URL = "https://lehd.ces.census.gov/data/lodes/LODES8/{st}/wac/{st}_wac_S000_JT00_{y}.csv.gz"
+NRI_URL = "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_{level}/FeatureServer/0/query"
+RDC_URL = "https://econdata.s3-us-west-2.amazonaws.com/Reports/Core/RDC_Inventory_Core_Metrics_{level}.csv"
+APTLIST_PAGE = "https://www.apartmentlist.com/research/category/data-rent-estimates"
+CBSA_URL = "https://data.nber.org/cbsa-csa-fips-county-crosswalk/2023/cbsa2fipsxw_2023.csv"
+STATES = ("al ak az ar ca co ct de dc fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok or pa "
+          "ri sc sd tn tx ut vt va wa wv wi wy").split()
+# National Risk Index hazards, in the order the map's codes refer to them.
+HAZARDS = ["HRCN", "CFLD", "IFLD", "WFIR", "TRND", "HAIL", "SWND", "ERQK", "WNTW", "HWAV", "CWAV", "LNDS", "LTNG", "ISTM", "AVLN", "TSUN", "VLCN"]
 # County outlines are pinned to one release and checked, since they're published to every visitor as-is.
 ATLAS_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/counties-10m.json"
 ATLAS_SHA256 = "145aaf5d1433352a6a1d8e86b5f149c7c653f9171baf14aaf75ee66575def1b0"
@@ -50,6 +66,7 @@ FIELDS = {
     "units": ("b25024", [1]),          # all housing units
     "mf5n":  ("b25024", [6, 7, 8, 9]), # units in buildings with 5+ units
     "yb":    ("b25035", [1]),          # median year structure built
+    "tax":   ("b25103", [1]),          # median real estate taxes paid, owner-occupied
 }
 ORDER = list(FIELDS)
 
@@ -221,6 +238,150 @@ def read_zcta(year, cache):
     return out
 
 
+def read_qcew(cache):
+    """Covered jobs and average weekly wage per county for the latest quarter BLS has published, with the change
+    from the same quarter a year earlier (so seasonal swings cancel out)."""
+    today = date.today()
+    quarters = [(y, q) for y in (today.year, today.year - 1) for q in (4, 3, 2, 1)]
+    y, q = next(((y, q) for y, q in quarters if (y, q) <= (today.year, (today.month - 1) // 3 + 1) and exists(QCEW_URL.format(y=y, q=q))), (None, None))
+    if not y:
+        sys.exit("Couldn't find a recent QCEW quarter.")
+    path = fetch(QCEW_URL.format(y=y, q=q), cache, f"qcew-{y}q{q}.csv")
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            # agglvl 70: county, all industries, all ownerships. Disclosure "N" means suppressed.
+            if r["agglvl_code"] != "70" or r["own_code"] != "0" or r["disclosure_code"] == "N":
+                continue
+            emp = num(r["month3_emplvl"])
+            if not emp:
+                continue
+            out[r["area_fips"]] = {"emp": int(emp), "empg1": num_s(r["oty_month3_emplvl_pct_chg"]),
+                                   "wage": num(r["avg_wkly_wage"]), "wageg1": num_s(r["oty_avg_wkly_wage_pct_chg"])}
+    return out, f"{y} Q{q}"
+
+
+def num_s(v):
+    """A signed number (num() treats negatives as missing, which suits ACS but not changes)."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def read_lodes(cache):
+    """Jobs located in each tract (all jobs, all workers), from each state's newest LODES workplace file."""
+    out, years = {}, set()
+    newest = date.today().year - 1
+    for st in STATES:
+        for y in range(newest, newest - 5, -1):
+            if exists(LODES_URL.format(st=st, y=y)):
+                break
+        else:
+            print(f"  no LODES file for {st}", file=sys.stderr)
+            continue
+        years.add(y)
+        path = fetch(LODES_URL.format(st=st, y=y), cache, f"lodes-{st}-{y}.csv.gz")
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                t = r["w_geocode"][:11]   # block -> tract
+                out[t] = out.get(t, 0) + int(r["C000"])
+    return out, f"{min(years)}" if len(years) == 1 else f"{min(years)}–{max(years)}"
+
+
+def read_nri(cache, level, key):
+    """FEMA National Risk Index: composite risk score (a national percentile, 0–100), expected annual building
+    losses from natural hazards per $1M of building value, and the hazard that drives most of those losses."""
+    fields = ["NRI_VER", key, "RISK_SCORE", "BUILDVALUE", "EAL_VALB"] + [h + "_EALB" for h in HAZARDS]
+    out, ver, offset = {}, None, 0
+    while True:
+        q = urllib.parse.urlencode({"where": "1=1", "outFields": ",".join(fields), "returnGeometry": "false",
+                                    "orderByFields": "OBJECTID", "resultOffset": offset, "resultRecordCount": 2000, "f": "json"})
+        path = fetch(NRI_URL.format(level=level) + "?" + q, cache, f"nri-{level}-{offset}.json")
+        with open(path) as f:
+            page = json.load(f)
+        if "features" not in page:
+            os.remove(path)
+            sys.exit(f"National Risk Index query failed: {str(page)[:200]}")
+        for feat in page["features"]:
+            a = feat["attributes"]
+            ver = ver or a.get("NRI_VER")
+            bv, loss = a.get("BUILDVALUE") or 0, a.get("EAL_VALB")
+            losses = [(a.get(h + "_EALB") or 0, i) for i, h in enumerate(HAZARDS)]
+            top = max(losses)
+            out[a[key]] = {"risk": None if a.get("RISK_SCORE") is None else round(a["RISK_SCORE"], 1),
+                           "lossr": round(loss / bv * 1e6) if bv and loss is not None else None,
+                           "haz": top[1] if top[0] > 0 else None}
+        if not page.get("exceededTransferLimit") and len(page["features"]) < 2000:
+            break
+        offset += 2000
+    return out, ver
+
+
+def read_rdc(cache, level, key):
+    """Realtor.com for-sale listings for the latest month: median days on market, active listings and listing
+    price change over the year, and the share of listings with a price cut."""
+    path = fetch(RDC_URL.format(level=level), cache, f"rdc-{level.lower()}.csv")
+    out, month = {}, None
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if not r.get("month_date_yyyymm", "").isdigit():
+                continue   # the files end with a notes row
+            month = month or r["month_date_yyyymm"]
+            k = r[key].zfill(5)
+            pct = lambda c: None if num_s(r.get(c)) is None else round(num_s(r[c]) * 100, 1)
+            out[k] = {"dom": num(r["median_days_on_market"]), "invg": pct("active_listing_count_yy"),
+                      "lpg": pct("median_listing_price_yy"), "prc": pct("price_reduced_share"),
+                      "n": int(num(r["active_listing_count"]) or 0)}
+    return out, f"{month[:4]}-{month[4:]}" if month else None
+
+
+def read_aptlist(cache):
+    """Apartment List's vacancy index and concession rate (share of listings offering one) for the latest month,
+    by county where it publishes one and by metro area (CBSA code) otherwise."""
+    page = fetch(APTLIST_PAGE, cache, "aptlist.html")
+    with open(page, encoding="utf-8", errors="replace") as f:
+        html = f.read()
+    out, month = {"county": {}, "metro": {}}, None
+    for kind, field in (("Vacancy_Index", "avac"), ("Concession_Rates", "conc")):
+        m = re.search(r"//[a-z]+\.ctfassets\.net/[\w/]+/Apartment_List_%s_(\d{4})_(\d{2})\.csv" % kind, html)
+        if not m:
+            print(f"  Apartment List {kind} file not found on the page", file=sys.stderr)
+            continue
+        path = fetch("https:" + m.group(0), cache, f"aptlist-{kind}-{m.group(1)}{m.group(2)}.csv")
+        with open(path, encoding="utf-8") as f:
+            rows = csv.reader(f)
+            head = next(rows)
+            months = [i for i, h in enumerate(head) if re.fullmatch(r"\d{4}_\d{2}", h)]
+            t, code = head.index("location_type"), head.index("location_fips_code")
+            for r in rows:
+                level = {"County": "county", "Metro": "metro"}.get(r[t])
+                vals = [(head[i], num_s(r[i])) for i in months if r[i]]
+                if not level or not vals:
+                    continue
+                last, v = vals[-1]
+                rec = out[level].setdefault(r[code].zfill(5), {})
+                rec[field] = round(v * 100, 1)
+                if field == "avac":   # change in the vacancy rate over the year, in percentage points
+                    by = dict(vals)
+                    y0 = f"{int(last[:4]) - 1}{last[4:]}"
+                    if by.get(y0) is not None:
+                        rec["avacg"] = round((v - by[y0]) * 100, 1)
+                month = max(month or "", last.replace("_", "-"))
+    return out, month
+
+
+def read_cbsa(cache):
+    """County -> (metro or micro area code, its title)."""
+    path = fetch(CBSA_URL, cache, "cbsa2fipsxw_2023.csv")
+    out = {}
+    with open(path, encoding="latin-1") as f:
+        for r in csv.DictReader(f):
+            if r.get("cbsacode") and r.get("fipsstatecode"):
+                out[r["fipsstatecode"].zfill(2) + r["fipscountycode"].zfill(3)] = (r["cbsacode"], r["cbsatitle"])
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--acs", default="auto", help="last year of the ACS 5-year release, or 'auto' for the newest")
@@ -248,6 +409,17 @@ def main():
     permits, permits_m = read_permits(a.cache)
     print("ZIP locations…", file=sys.stderr)
     zcta = read_zcta(a.gaz, a.cache)
+    print("Jobs…", file=sys.stderr)
+    qcew, qcew_m = read_qcew(a.cache)
+    lodes, lodes_m = read_lodes(a.cache)
+    print("Natural hazard risk…", file=sys.stderr)
+    nri_t, nri_v = read_nri(a.cache, "Census_Tracts", "TRACTFIPS")
+    nri_c, _ = read_nri(a.cache, "Counties", "STCOFIPS")
+    print("Listings, apartment vacancy and concessions…", file=sys.stderr)
+    rdc_z, rdc_m = read_rdc(a.cache, "Zip", "postal_code")
+    rdc_c, _ = read_rdc(a.cache, "County", "county_fips")
+    apt, apt_m = read_aptlist(a.cache)
+    cbsa = read_cbsa(a.cache)
     atlas = fetch(ATLAS_URL, a.cache, "us-atlas-3.0.1-counties-10m.json")
     with open(atlas, "rb") as f:
         if hashlib.sha256(f.read()).hexdigest() != ATLAS_SHA256:
@@ -258,12 +430,17 @@ def main():
 
     # Column layout (one array per field) compresses about 25% smaller than rows.
     # c: index into the county list; lat/lon: degrees x 10,000; area_k: land area in thousands of square meters.
+    # jobs: jobs located in the tract. risk: FEMA risk score; lossr: expected annual building losses per $1M of
+    # building value; haz: index into HAZARDS of the costliest hazard.
     cty_list, cty_idx = [], {}
-    cols = {k: [] for k in ["c", "lat", "lon", "area_k"] + ORDER}
+    cols = {k: [] for k in ["c", "lat", "lon", "area_k"] + ORDER + ["jobs", "risk", "lossr", "haz"]}
     missing = 0
+    # LODES still codes Connecticut tracts under the old counties; the tract numbers match the planning-region codes.
+    ct = {t[5:]: v for t, v in lodes.items() if t.startswith("09")}
+    jobs_at = lambda gid: lodes.get(gid, ct.get(gid[5:]) if gid.startswith("09") else None)
     for gid, rec in sorted(acs_t.items()):
         pt = gaz.get(gid)
-        if not pt or not rec.get("pop"):
+        if not pt or not (rec.get("pop") or jobs_at(gid)):   # job centers with no residents still count for jobs
             missing += 0 if rec.get("pop") == 0 else 1
             continue
         lat, lon, area = pt
@@ -277,6 +454,11 @@ def main():
         cols["area_k"].append(max(1, round(area / 1000)))
         for k in ORDER:
             cols[k].append(ival(rec.get(k)))
+        n = nri_t.get(gid, {})
+        cols["jobs"].append(jobs_at(gid))
+        cols["risk"].append(ival(n.get("risk")))
+        cols["lossr"].append(n.get("lossr"))
+        cols["haz"].append(n.get("haz"))
     rows = cols["c"]
     tracts = {"acs": f"{a.acs - 4}–{a.acs}", "n": len(rows), "counties": cty_list, "cols": cols}
 
@@ -294,19 +476,39 @@ def main():
             c.setdefault("metro", z["metro"])
         if fips in permits:
             c.update(permits[fips])
+        if fips in qcew:
+            c.update(qcew[fips])
+        if fips in nri_c:
+            c.update({k: (ival(v) if k == "risk" else v) for k, v in nri_c[fips].items()})
+        if fips in rdc_c:
+            c.update({k: v for k, v in rdc_c[fips].items() if k != "n"})
+        # Apartment List publishes some counties directly; the rest get their metro area's figures.
+        cb = cbsa.get(fips)
+        if cb:
+            c["cbsa"], c["cbsaName"] = cb
+        al = apt["county"].get(fips) or (apt["metro"].get(cb[0]) if cb else None)
+        if al:
+            c.update(al)
+            c["alLevel"] = "county" if fips in apt["county"] else "metro"
         counties[fips] = {k: v for k, v in c.items() if v is not None}
-    meta = {"acs": f"{a.acs - 4}–{a.acs}", "pep": a.pep, "zhvi": zhvi_m, "zori": zori_m, "permits": permits_m}
+    meta = {"acs": f"{a.acs - 4}–{a.acs}", "pep": a.pep, "zhvi": zhvi_m, "zori": zori_m, "permits": permits_m,
+            "qcew": qcew_m, "lodes": lodes_m, "nri": nri_v, "hazards": HAZARDS, "rdc": rdc_m, "aptlist": apt_m}
 
-    # ZIPs with any Zillow series, placed at the ZIP code tabulation area's internal point.
-    zcols = {k: [] for k in ("zip", "lat", "lon", "area_k", "zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3")}
+    # ZIPs with any Zillow series, placed at the ZIP code tabulation area's internal point, with Realtor.com
+    # listings figures where that ZIP has enough listings to read (Realtor.com's quality flag).
+    zkeys = ("zip", "lat", "lon", "area_k", "zhvi", "zhvi1", "zhvi5", "zori", "zori1", "zori3", "dom", "invg", "lpg", "prc")
+    zcols = {k: [] for k in zkeys}
     for z in sorted(set(zhvi_z) | set(zori_z)):
         pt = zcta.get(z)
         if not pt:
             continue
-        hv, rt = zhvi_z.get(z, {}), zori_z.get(z, {})
+        hv, rt, ls = zhvi_z.get(z, {}), zori_z.get(z, {}), rdc_z.get(z, {})
+        if ls.get("n", 0) < 10:   # a handful of listings makes the yearly change meaningless
+            ls = {}
         for k, v in (("zip", z), ("lat", round(pt[0] * 1e4)), ("lon", round(pt[1] * 1e4)), ("area_k", max(1, round(pt[2] / 1000))),
                      ("zhvi", hv.get("v")), ("zhvi1", hv.get("g1")), ("zhvi5", hv.get("g5")),
-                     ("zori", rt.get("v")), ("zori1", rt.get("g1")), ("zori3", rt.get("g3"))):
+                     ("zori", rt.get("v")), ("zori1", rt.get("g1")), ("zori3", rt.get("g3")),
+                     ("dom", ival(ls.get("dom"))), ("invg", ls.get("invg")), ("lpg", ls.get("lpg")), ("prc", ls.get("prc"))):
             zcols[k].append(v)
     zips = {"n": len(zcols["zip"]), "cols": zcols}
 
